@@ -108,12 +108,17 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #camWrap{position:fixed;inset:0;background:#000;display:none;z-index:60;flex-direction:column}
 #camWrap.open{display:flex}
 #cam{flex:1;width:100%;object-fit:cover}
-#camBar{padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:#111;display:flex;gap:8px;align-items:center}
+#camBar{padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:#111;display:flex;gap:10px;align-items:center;transition:background .18s}
+#camBar.flash{background:#3a2415}
 #camBar .btn{background:#222;border-color:#444;color:#fff}
 #camBar .btn.on{background:var(--accent);border-color:var(--accent)}
 #camHint{position:absolute;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none}
 #reticle{position:absolute;top:50%;left:50%;width:64vw;height:64vw;max-width:320px;max-height:320px;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.8);border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);pointer-events:none}
-#camStatus{color:#bbb}
+#camLastTitle{color:#fff;font-weight:600}
+#camLastSub{color:#9a9a9a}
+#camBar.ok #camLastTitle{color:#e8a877}
+#camBar.dup #camLastTitle{color:#9a9a9a}
+#camCount{color:#9a9a9a;flex:0 0 auto}
 
 #toast{
   position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));
@@ -181,18 +186,29 @@ summary{cursor:pointer}
   <!-- ============ ИНВЕНТАРИЗАЦИЯ ============ -->
   <section class="screen" id="s-audit">
     <div id="auditIdle">
+      <div id="auditPending"></div>
       <div class="card">
-        <div style="font-weight:650;margin-bottom:8px">Новая сессия</div>
+        <div style="font-weight:650;margin-bottom:2px">Перепись</div>
+        <div class="xs dim" style="margin-bottom:10px">завести то, чего ещё нет в базе, и сразу напечатать этикетку</div>
+        <label class="f"><span>Куда заносим</span><select id="censusLoc"></select></label>
+        <button class="btn primary big" id="btnCensusStart">Начать перепись</button>
+        <button class="btn big" id="btnCensusScan" style="margin-top:8px">Сканировать этикетку места</button>
+      </div>
+      <div class="card">
+        <div style="font-weight:650;margin-bottom:2px">Сверка</div>
+        <div class="xs dim" style="margin-bottom:10px">пройтись по тому, что уже в базе, и отметить наличие</div>
         <label class="f"><span>Локация</span><select id="auditLoc"></select></label>
         <label class="row sm" style="gap:8px;margin-bottom:12px">
           <input type="checkbox" id="auditDeep" checked style="width:auto">
           <span>включая вложенные места</span>
         </label>
-        <button class="btn ok big" id="btnAuditStart">Начать инвентаризацию</button>
+        <button class="btn big" id="btnAuditStart">Начать сверку</button>
+        <button class="btn big" id="btnAuditScan" style="margin-top:8px">Сканировать этикетку места</button>
       </div>
       <h2>Прошлые сессии</h2>
       <div id="auditHistory"></div>
     </div>
+    <div id="censusRun" style="display:none"></div>
     <div id="auditRun" style="display:none"></div>
   </section>
 
@@ -206,6 +222,15 @@ summary{cursor:pointer}
       <button class="btn big" id="btnCsv">CSV — архив из 6 файлов</button>
       <div class="xs dim" style="margin-top:8px">UTF-8 с BOM, разделитель «;» — открывается в Excel без «каши» в столбце A.</div>
     </div>
+    <h2>Резервная копия</h2>
+    <div class="card">
+      <button class="btn primary big" id="btnBackup">Сохранить копию (JSON)</button>
+      <div class="xs dim" style="margin:8px 0 14px">Полный слепок базы. Переносит данные на другой телефон, другой адрес или новую версию приложения.</div>
+      <button class="btn big" id="btnRestore">Восстановить из копии</button>
+      <input type="file" id="restoreFile" accept="application/json,.json" style="display:none">
+      <div class="xs dim" id="storageInfo" style="margin-top:10px"></div>
+    </div>
+
     <h2>Данные</h2>
     <div class="card">
       <button class="btn big" id="btnDemo">Загрузить демо-набор</button>
@@ -247,9 +272,13 @@ summary{cursor:pointer}
   <div id="reticle"></div>
   <div id="camHint">код в рамку, вплотную не надо</div>
   <div id="camBar">
-    <div class="grow sm" id="camStatus">поиск кода…</div>
+    <div class="grow" id="camLast">
+      <div class="sm" id="camLastTitle">наведи на код</div>
+      <div class="xs" id="camLastSub"></div>
+    </div>
+    <div class="sm mono" id="camCount"></div>
     <button class="btn" id="camTorch">Свет</button>
-    <button class="btn" id="camClose">Закрыть</button>
+    <button class="btn" id="camClose">Готово</button>
   </div>
 </div>
 
@@ -505,7 +534,7 @@ var Printer = (function () {
 
   var CFG = {
     density: 3,              // по доку
-    packetIntervalMs: 10,    // 5 мс быстрее на ~2 с, качество то же; оставлено надёжное
+    packetIntervalMs: 5,     // по доку 5 мс даёт то же качество и экономит ~2 с на этикетку
     statusPollIntervalMs: 100,
     statusTimeoutMs: 8000,
     headDots: 142
@@ -747,22 +776,77 @@ var Labels = (function () {
     return tops;
   }
 
-  // Название — главное на этикетке, поэтому сначала подбираем кегль,
-  // и только если даже минимальный не влезает, переносим на две строки
-  // (ценой одной строки данных).
-  function fitTitleRows(str, maxW, capMax, capMin) {
+  // Название — главное на этикетке. Две строки крупным шрифтом читаются
+  // лучше, чем одна мелким, поэтому на каждом кегле сначала пробуем одну
+  // строку, потом перенос, и только затем уменьшаем. Переносим не только
+  // по пробелам, но и по дефисам — химические названия иначе не разбить.
+  function titleTokens(str) {
+    var out = [], cur = '';
+    for (var i = 0; i < str.length; i++) {
+      cur += str[i];
+      if (str[i] === ' ' || str[i] === '-' || str[i] === '\u00b7') { out.push(cur); cur = ''; }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  function wrapTitle(str, cap, maxW, maxRows, breakLong) {
+    var t = titleTokens(str);
+    if (t.length < 2 && !breakLong) return null;
+    if (breakLong) t = splitLongTokens(t, cap, maxW);
+    var rows = [], cur = '';
+    for (var i = 0; i < t.length; i++) {
+      var probe = cur + t[i];
+      if (!cur || textW(probe.replace(/\s+$/, ''), cap, true) <= maxW) cur = probe;
+      else { rows.push(cur.replace(/\s+$/, '')); cur = t[i]; }
+    }
+    if (cur) rows.push(cur.replace(/\s+$/, ''));
+    if (rows.length > maxRows) return null;
+    if (!breakLong) {
+      for (var k = 0; k < rows.length; k++) if (textW(rows[k], cap, true) > maxW) return null;
+    }
+    return rows;
+  }
+
+  // Последнее средство: режем слишком длинное слово по буквам.
+  function splitLongTokens(tokens, cap, maxW) {
+    var out = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      while (textW(t.replace(/\s+$/, ''), cap, true) > maxW && t.length > 1) {
+        var n = t.length;
+        while (n > 1 && textW(t.slice(0, n), cap, true) > maxW) n--;
+        out.push(t.slice(0, n));
+        t = t.slice(n);
+      }
+      if (t) out.push(t);
+    }
+    return out;
+  }
+
+  // Сначала стараемся уложиться в две строки на самом крупном кегле, какой
+  // позволяет ширина: так остаётся строка данных. Три строки — только если
+  // в две не вышло ни при каком кегле, и тогда данные уступают названию.
+  function fitTitleRows(str, maxW, capMax, capMin, maxRows) {
     str = String(str || '').trim();
     if (!str) return { cap: capMax, rows: [''] };
-    for (var cap = capMax; cap >= capMin - 0.001; cap -= 0.1) {
-      if (textW(str, cap, true) <= maxW) return { cap: Math.round(cap * 10) / 10, rows: [str] };
+    capMin = capMin || 1.5;
+    maxRows = maxRows || 3;
+
+    for (var limit = 2; limit <= maxRows; limit++) {
+      for (var cap = capMax; cap >= capMin - 0.001; cap = Math.round((cap - 0.1) * 10) / 10) {
+        if (limit === 2 && textW(str, cap, true) <= maxW) return { cap: cap, rows: [str] };
+        var rows = wrapTitle(str, cap, maxW, limit);
+        if (rows) return { cap: cap, rows: rows };
+      }
     }
-    var words = str.split(/\s+/), a = '', b = '';
-    for (var i = 0; i < words.length; i++) {
-      var probe = a ? a + ' ' + words[i] : words[i];
-      if (!b && (textW(probe, capMin, true) <= maxW || !a)) a = probe;
-      else b = b ? b + ' ' + words[i] : words[i];
-    }
-    return b ? { cap: capMin, rows: [a, b] } : { cap: capMin, rows: [a] };
+    // На узких этикетках слово целиком не влезает ни при каком кегле.
+    // Узкое начертание (text() сжимает до 80 %) читается лучше, чем разрыв
+    // слова посередине, и в доке половинки и так набраны узким жирным.
+    var relaxed = wrapTitle(str, capMin, maxW / 0.8, maxRows);
+    if (relaxed) return { cap: capMin, rows: relaxed };
+    var broken = wrapTitle(str, capMin, maxW, maxRows, true) || [str];
+    return { cap: capMin, rows: broken.slice(0, maxRows) };
   }
 
   // ---------- прямоугольный блок ----------
@@ -773,8 +857,8 @@ var Labels = (function () {
     var x = x0 + m + d.size + mm(1.2), right = x1 - mm(1);
     var maxW = right - x;
 
-    var fit = fitTitleRows(o.title, maxW, o.titleCap, o.titleMin || 1.8);
-    var lines = fit.rows.length > 1 ? o.lines.slice(0, Math.max(0, o.lines.length - 1)) : o.lines;
+    var fit = fitTitleRows(o.title, maxW, o.titleCap, o.titleMin || 1.5, o.titleRows || 3);
+    var lines = o.lines.slice(0, Math.max(0, o.lines.length - (fit.rows.length - 1)));
     // номер не должен спорить с названием за главенство
     var codeCap = Math.max(MIN_CAP, Math.min(o.codeCap, fit.cap - 0.1));
 
@@ -829,8 +913,8 @@ var Labels = (function () {
   function flagBody(x0, x1, o, warns) {
     var x = x0 + mm(FLAG.pad), right = x1 - mm(FLAG.pad);
     var maxW = right - x;
-    var fit = fitTitleRows(o.title, maxW, 2.2, 1.7);
-    var lines = fit.rows.length > 1 ? o.lines.slice(0, 1) : o.lines;
+    var fit = fitTitleRows(o.title, maxW, 2.2, 1.5, 3);
+    var lines = o.lines.slice(0, Math.max(0, o.lines.length - (fit.rows.length - 1)));
     var caps = fit.rows.map(function () { return fit.cap; })
       .concat(lines.map(function () { return 1.5; })).concat([1.6]);
     var tops = rowTops(caps);
@@ -1012,6 +1096,7 @@ var Labels = (function () {
   }
 
   return {
+    _fit: fitTitleRows, _wrap: wrapTitle, _tok: titleTokens, _textW: textW, _surface: surface,
     TPL: TPL, render: render, linesFor: linesFor, nextCode: nextCode,
     DPI: DPI, MM: MM, HEAD: HEAD, MIN_CAP: MIN_CAP, mm: mm, r: r, dmInfo: dmInfo
   };
@@ -1263,12 +1348,12 @@ var DB = (function () {
   'use strict';
 
   var NAME = 'lab_inventory';
-  var VERSION = 1;
+  var VERSION = 2;
   var db = null;
 
   var STORES = {
     items: { key: 'id', idx: { name: 'name', type: 'type', catalog_no: 'catalog_no' } },
-    locations: { key: 'id', idx: { parent_id: 'parent_id', name: 'name' } },
+    locations: { key: 'id', idx: { parent_id: 'parent_id', name: 'name', code: 'code' } },
     stock: { key: 'id', idx: { code: 'code', item_id: 'item_id', location_id: 'location_id', status: 'status', project: 'project' } },
     movements: { key: 'id', idx: { stock_id: 'stock_id', ts: 'ts', session_id: 'session_id' } },
     audit_sessions: { key: 'id', idx: { location_id: 'location_id', started_at: 'started_at' } },
@@ -1316,12 +1401,16 @@ var DB = (function () {
       var req = indexedDB.open(NAME, VERSION);
       req.onupgradeneeded = function (e) {
         var d = e.target.result;
+        var tr = e.target.transaction;
         Object.keys(STORES).forEach(function (s) {
-          if (d.objectStoreNames.contains(s)) return;
-          var os = d.createObjectStore(s, { keyPath: STORES[s].key });
+          var os = d.objectStoreNames.contains(s)
+            ? tr.objectStore(s)
+            : d.createObjectStore(s, { keyPath: STORES[s].key });
           var idx = STORES[s].idx || {};
           Object.keys(idx).forEach(function (n) {
-            os.createIndex(n, idx[n], { unique: s === 'stock' && n === 'code' });
+            if (!os.indexNames.contains(n)) {
+              os.createIndex(n, idx[n], { unique: s === 'stock' && n === 'code' });
+            }
           });
         });
       };
@@ -1392,6 +1481,35 @@ var DB = (function () {
     throw new Error('Не удалось подобрать свободный код');
   }
 
+  // Места тоже получают код: отсканировал коробку — и ты «в ней»,
+  // без выбора из списка. Префикс L, чтобы не путать с содержимым.
+  async function newLocationCode() {
+    var existing = await all('locations');
+    var used = {}, maxNum = 0;
+    existing.forEach(function (l) {
+      if (!l.code) return;
+      used[l.code] = 1;
+      var m = /^L(\d+)$/.exec(l.code);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    });
+    for (var n = maxNum + 1; n < maxNum + 100000; n++) {
+      var code = 'L' + String(n).padStart(4, '0');
+      if (!used[code]) return code;
+    }
+    throw new Error('Не удалось подобрать свободный код места');
+  }
+
+  // Доставляет коды местам, заведённым до появления этой возможности.
+  async function backfillLocationCodes() {
+    var locs = await all('locations');
+    var missing = locs.filter(function (l) { return !l.code; });
+    for (var i = 0; i < missing.length; i++) {
+      missing[i].code = await newLocationCode();
+      await put('locations', missing[i]);
+    }
+    return missing.length;
+  }
+
   // --- локации: путь ---
   function buildPaths(locations) {
     var byId = {};
@@ -1439,9 +1557,63 @@ var DB = (function () {
     var fridge = { id: uid(), parent_id: room.id, name: '+4 холодильник', kind: 'fridge', temp_c: 4, notes: '' };
     var shelf = { id: uid(), parent_id: room.id, name: 'Полка реагентов', kind: 'shelf', temp_c: 22, notes: '' };
     var box = { id: uid(), parent_id: f80.id, name: 'Бокс A1', kind: 'box', temp_c: -80, notes: '' };
-    for (var l of [room, f80, f20, fridge, shelf, box]) await put('locations', l);
+    for (var l of [room, f80, f20, fridge, shelf, box]) {
+      l.code = await newLocationCode();
+      await put('locations', l);
+    }
     await put('meta', { k: 'created_at', v: nowIso() });
     return true;
+  }
+
+  // Полный слепок базы: переносит данные между версиями приложения,
+  // между телефонами и, главное, между адресами — IndexedDB привязана
+  // к origin, и смена хостинга делает старую базу невидимой.
+  async function dumpAll() {
+    var out = { format: 'lab-inventory', version: VERSION, exported_at: nowIso(), data: {} };
+    var names = Object.keys(STORES);
+    for (var i = 0; i < names.length; i++) out.data[names[i]] = await all(names[i]);
+    return out;
+  }
+
+  // mode 'merge' — дописать поверх существующего по id, 'replace' — начисто.
+  async function restoreAll(dump, mode) {
+    if (!dump || dump.format !== 'lab-inventory' || !dump.data) {
+      throw new Error('Это не резервная копия инвентаря');
+    }
+    var names = Object.keys(STORES);
+    var stats = { added: 0, replaced: 0 };
+    if (mode === 'replace') await wipe();
+    for (var i = 0; i < names.length; i++) {
+      var rows = dump.data[names[i]];
+      if (!rows || !rows.length) continue;
+      var key = STORES[names[i]].key;
+      for (var j = 0; j < rows.length; j++) {
+        var row = rows[j];
+        if (!row || row[key] === undefined) continue;
+        var existing = mode === 'replace' ? null : await get(names[i], row[key]);
+        await put(names[i], row);
+        if (existing) stats.replaced++; else stats.added++;
+      }
+    }
+    return stats;
+  }
+
+  // Без этого Android может вычистить IndexedDB под нехватку места.
+  async function requestPersistence() {
+    try {
+      if (!navigator.storage || !navigator.storage.persist) return null;
+      if (await navigator.storage.persisted()) return true;
+      return await navigator.storage.persist();
+    } catch (e) { return null; }
+  }
+
+  async function storageInfo() {
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return null;
+      var e = await navigator.storage.estimate();
+      var persisted = navigator.storage.persisted ? await navigator.storage.persisted() : null;
+      return { usage: e.usage, quota: e.quota, persisted: persisted };
+    } catch (e) { return null; }
   }
 
   async function wipe() {
@@ -1461,8 +1633,11 @@ var DB = (function () {
   return {
     open: open, put: put, get: get, del: del, all: all, byIndex: byIndex,
     uid: uid, nowIso: nowIso, newCode: newCode, prefixFor: prefixFor,
+    newLocationCode: newLocationCode, backfillLocationCodes: backfillLocationCodes,
     buildPaths: buildPaths, descendants: descendants, logMove: logMove,
     seedIfEmpty: seedIfEmpty, wipe: wipe, counts: counts,
+    dumpAll: dumpAll, restoreAll: restoreAll,
+    requestPersistence: requestPersistence, storageInfo: storageInfo,
     TYPES: TYPES, LOC_KINDS: LOC_KINDS, STATUSES: STATUSES, MOVE_TYPES: MOVE_TYPES,
     STORES: STORES
   };
@@ -1474,7 +1649,7 @@ var DB = (function () {
 (function () {
   'use strict';
 
-  var S = { items: [], locations: [], stock: [], paths: {}, session: null, sessionRows: [] };
+  var S = { items: [], locations: [], stock: [], paths: {}, session: null, sessionRows: [], census: null };
   var INI = function () { return localStorage.getItem('ini') || 'ED'; };
   var $ = function (id) { return document.getElementById(id); };
   var el = function (tag, cls, html) {
@@ -1532,6 +1707,23 @@ var DB = (function () {
     for (var i = 0; i < S.stock.length; i++) if (S.stock[i].code === code) return S.stock[i];
     return null;
   }
+  function locByCode(code) {
+    code = String(code || '').trim().toUpperCase();
+    for (var i = 0; i < S.locations.length; i++) if (S.locations[i].code === code) return S.locations[i];
+    return null;
+  }
+
+  // Этикетка места: название крупно, под ним — где это место стоит.
+  // Если коробку вынули, по этикетке видно, куда её вернуть.
+  function labelSpecLoc(loc) {
+    var parent = loc.parent_id ? (S.paths[loc.parent_id] || '') : '';
+    var t = (loc.temp_c !== null && loc.temp_c !== undefined && loc.temp_c !== '') ? loc.temp_c + '\u00b0' : '';
+    return {
+      title: loc.name || loc.code || '',
+      lines: [parent, [labelOf(DB.LOC_KINDS, loc.kind), t].filter(Boolean).join(' \u00b7 ')]
+    };
+  }
+
   function locOf(id) {
     for (var i = 0; i < S.locations.length; i++) if (S.locations[i].id === id) return S.locations[i];
     return null;
@@ -1573,6 +1765,89 @@ var DB = (function () {
     });
   }
 
+  // ---------- поля по типу объекта ----------
+  // Плазмиде не нужен срок годности, праймеру — производитель, мыши — объём.
+  // Форма показывает только то, что осмысленно: меньше полей — быстрее ввод.
+  var FIELD_DEFS = {
+    qty: { label: 'Кол-во', kind: 'number', target: 'stock', key: 'qty', half: true },
+    unit: { label: 'Ед.', kind: 'text', target: 'stock', key: 'unit', half: true },
+    lot: { label: 'Лот', kind: 'text', target: 'stock', key: 'lot', half: true },
+    expiry: { label: 'Срок годности', kind: 'date', target: 'stock', key: 'expiry', half: true },
+    manufacturer: { label: 'Производитель', kind: 'text', target: 'item', key: 'manufacturer', half: true },
+    catalog_no: { label: 'Кат. №', kind: 'text', target: 'item', key: 'catalog_no', half: true },
+    project: { label: 'Проект', kind: 'text', target: 'stock', key: 'project', half: true },
+    slot: { label: 'Позиция в боксе', kind: 'text', target: 'extra', key: 'slot', half: true },
+    passage: { label: 'Пассаж', kind: 'text', target: 'extra', key: 'passage', half: true },
+    titer: { label: 'Титр', kind: 'text', target: 'extra', key: 'titer', half: true },
+    sex: { label: 'Пол', kind: 'text', target: 'extra', key: 'sex', half: true },
+    age: { label: 'Возраст', kind: 'text', target: 'extra', key: 'age', half: true },
+    cage: { label: 'Клетка', kind: 'text', target: 'extra', key: 'cage', half: true },
+    serial: { label: 'Серийный №', kind: 'text', target: 'extra', key: 'serial', half: true },
+    labels: { label: 'Этикеток', kind: 'number', target: 'extra', key: 'labels', half: true }
+  };
+
+  var TYPE_FIELDS = {
+    reagent: ['qty', 'unit', 'lot', 'expiry', 'manufacturer', 'catalog_no'],
+    kit: ['qty', 'unit', 'lot', 'expiry', 'manufacturer', 'catalog_no', 'labels'],
+    enzyme: ['qty', 'unit', 'lot', 'expiry', 'manufacturer', 'catalog_no'],
+    antibody: ['qty', 'unit', 'lot', 'expiry', 'manufacturer', 'catalog_no'],
+    primer: ['qty', 'unit', 'project'],
+    plasmid: ['qty', 'unit', 'project', 'slot'],
+    sample: ['qty', 'unit', 'lot', 'passage', 'project', 'slot'],
+    cell_line: ['qty', 'unit', 'lot', 'passage', 'project', 'slot'],
+    vector: ['qty', 'unit', 'titer', 'project', 'slot'],
+    animal: ['sex', 'age', 'project', 'cage'],
+    consumable: ['qty', 'unit', 'manufacturer', 'catalog_no'],
+    equipment: ['manufacturer', 'serial']
+  };
+
+  function fieldsOf(type) { return TYPE_FIELDS[type] || TYPE_FIELDS.reagent; }
+
+  function fieldValue(name, st, item) {
+    var d = FIELD_DEFS[name];
+    if (!d) return '';
+    var src = d.target === 'item' ? (item || {}) : (d.target === 'extra' ? (st.extra || {}) : st);
+    var v = src[d.key];
+    return v === null || v === undefined ? '' : v;
+  }
+
+  function fieldsHtml(type, st, item, prefix) {
+    var names = fieldsOf(type), out = '', buf = [];
+    function flush() {
+      if (!buf.length) return;
+      out += (buf.length === 2 ? '<div class="grid2">' : '') + buf.join('') + (buf.length === 2 ? '</div>' : '');
+      buf = [];
+    }
+    for (var i = 0; i < names.length; i++) {
+      var d = FIELD_DEFS[names[i]];
+      if (!d) continue;
+      var id = prefix + names[i];
+      var val = esc(fieldValue(names[i], st, item));
+      var attrs = d.kind === 'number' ? ' type="number" step="any" inputmode="decimal"'
+        : d.kind === 'date' ? ' type="date"' : '';
+      var html = '<label class="f"><span>' + d.label + '</span><input id="' + id + '"' + attrs + ' value="' + val + '"></label>';
+      if (d.half) { buf.push(html); if (buf.length === 2) flush(); }
+      else { flush(); out += html; }
+    }
+    flush();
+    return out;
+  }
+
+  function readFields(type, st, item, prefix) {
+    var names = fieldsOf(type);
+    st.extra = st.extra || {};
+    for (var i = 0; i < names.length; i++) {
+      var d = FIELD_DEFS[names[i]];
+      var node = $(prefix + names[i]);
+      if (!d || !node) continue;
+      var v = node.value.trim();
+      if (d.kind === 'number') v = v === '' ? '' : parseFloat(v);
+      if (d.target === 'item') item[d.key] = v;
+      else if (d.target === 'extra') st.extra[d.key] = v;
+      else st[d.key] = v;
+    }
+  }
+
   // ---------- навигация ----------
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
     b.addEventListener('click', function () {
@@ -1594,9 +1869,11 @@ var DB = (function () {
     renderLocTree();
     renderTypeFilter();
     renderAuditLocs();
+    renderCensusLocs();
     renderRecent();
     renderStats();
     renderAuditHistory();
+    renderAuditPending();
     var dl = $('itemNames');
     dl.innerHTML = S.items.map(function (i) { return '<option value="' + esc(i.name) + '">'; }).join('');
   }
@@ -1681,6 +1958,7 @@ var DB = (function () {
         html += '<div class="node" data-loc="' + l.id + '">' +
           '<div class="grow" style="padding-left:' + (depth * 14) + 'px">' +
           '<span style="font-weight:' + (depth ? 500 : 650) + '">' + esc(l.name) + '</span>' +
+          (l.code ? ' <span class="xs dim mono">' + esc(l.code) + '</span>' : '') +
           ' <span class="xs dim">' + labelOf(DB.LOC_KINDS, l.kind) +
           (l.temp_c !== null && l.temp_c !== undefined && l.temp_c !== '' ? ' · ' + l.temp_c + '°' : '') + '</span>' +
           '</div>' +
@@ -1721,6 +1999,7 @@ var DB = (function () {
   }
 
   function renderStats() {
+    renderStorageInfo();
     DB.counts().then(function (c) {
       var expired = S.stock.filter(function (s) { return s.expiry && s.expiry < today() && s.status !== 'discarded'; }).length;
       $('dbStats').innerHTML =
@@ -1774,7 +2053,7 @@ var DB = (function () {
     if (!b) return;
     var st = stockOf(b.dataset.id);
     var act = b.dataset.act;
-    if (act === 'print') return showPrintForm(st);
+    if (act === 'print') return showPrintForm({ kind: 'stock', obj: st });
     if (act === 'consume') return showConsumeForm(st);
     if (act === 'move') return showMoveForm(st);
     if (act === 'edit') return showStockForm(st);
@@ -1844,7 +2123,16 @@ var DB = (function () {
     openSheet('<div class="sheetTitle">Переместить</div>' +
       '<div class="sm dim" style="margin-bottom:12px">' + esc(displayName(st)) + '<br>откуда: ' + esc(S.paths[st.location_id] || '—') + '</div>' +
       '<label class="f"><span>Куда</span><select id="mLoc">' + locOptions(st.location_id) + '</select></label>' +
+      '<button class="btn big" id="mScan" style="margin-bottom:8px">Сканировать этикетку места</button>' +
       '<button class="btn primary big" id="mSave">Переместить</button>');
+    $('mScan').onclick = function () {
+      openScanner(function (code) {
+        var loc = locByCode(code);
+        if (!loc) return toast('Код ' + code + ' не похож на место', 'bad');
+        $('mLoc').value = loc.id;
+        toast('Куда: ' + (S.paths[loc.id] || loc.name), 'ok');
+      });
+    };
     $('mSave').onclick = async function () {
       var to = $('mLoc').value;
       if (to === st.location_id) return toast('Это то же место', 'bad');
@@ -1862,43 +2150,46 @@ var DB = (function () {
   function showStockForm(st) {
     var isNew = !st;
     var it = st ? (itemOf(st.item_id) || {}) : {};
-    st = st || { qty: '', unit: 'шт', status: 'in_stock', project: '', owner: INI() };
+    st = st || { qty: '', unit: 'шт', status: 'in_stock', project: '', owner: INI(), extra: {} };
+    var type = it.type || 'reagent';
 
-    openSheet('<div class="sheetTitle">' + (isNew ? 'Новая позиция' : 'Правка') + '</div>' +
-      (isNew
-        ? (pendingCode ? '<div class="sm dim" style="margin-bottom:10px">код этикетки: <span class="mono">' + esc(pendingCode) + '</span></div>' : '')
-        : '<div class="sm dim mono" style="margin-bottom:10px">' + esc(st.code) + '</div>') +
-      '<label class="f"><span>Название *</span><input id="fName" list="itemNames" value="' + esc(it.name || '') + '" autocomplete="off"></label>' +
-      '<div class="grid2">' +
-      '<label class="f"><span>Тип *</span><select id="fType">' +
-      DB.TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (it.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') +
-      '</select></label>' +
-      '<label class="f"><span>Статус</span><select id="fStatus">' +
-      DB.STATUSES.map(function (s) { return '<option value="' + s[0] + '"' + (st.status === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('') +
-      '</select></label>' +
-      '</div>' +
-      '<label class="f"><span>Место *</span><select id="fLoc">' + locOptions(st.location_id) + '</select></label>' +
-      '<div class="grid3">' +
-      '<label class="f"><span>Кол-во</span><input id="fQty" type="number" step="any" inputmode="decimal" value="' + esc(st.qty) + '"></label>' +
-      '<label class="f"><span>Ед.</span><input id="fUnit" value="' + esc(st.unit || '') + '"></label>' +
-      '<label class="f"><span>Лот</span><input id="fLot" value="' + esc(st.lot || '') + '"></label>' +
-      '</div>' +
-      '<div class="grid2">' +
-      '<label class="f"><span>Срок годности</span><input id="fExp" type="date" value="' + esc(st.expiry || '') + '"></label>' +
-      '<label class="f"><span>Проект</span><input id="fProj" value="' + esc(st.project || '') + '"></label>' +
-      '</div>' +
-      '<div class="grid2">' +
-      '<label class="f"><span>Производитель</span><input id="fMan" value="' + esc(it.manufacturer || '') + '"></label>' +
-      '<label class="f"><span>Кат. №</span><input id="fCat" value="' + esc(it.catalog_no || '') + '"></label>' +
-      '</div>' +
-      '<label class="f"><span>Заметка</span><textarea id="fNotes" rows="2">' + esc(st.notes || '') + '</textarea></label>' +
-      '<button class="btn primary big" id="fSave">' + (isNew ? 'Создать и напечатать' : 'Сохранить') + '</button>' +
-      (isNew ? '<button class="btn big ghost" id="fSaveOnly" style="margin-top:8px">Создать без печати</button>' : ''));
+    function head() {
+      return '<div class="sheetTitle">' + (isNew ? 'Новая позиция' : 'Правка') + '</div>' +
+        (isNew
+          ? (pendingCode ? '<div class="sm dim" style="margin-bottom:10px">код этикетки: <span class="mono">' + esc(pendingCode) + '</span></div>' : '')
+          : '<div class="sm dim mono" style="margin-bottom:10px">' + esc(st.code) + '</div>') +
+        '<label class="f"><span>Название *</span><input id="fName" list="itemNames" value="' + esc(it.name || '') + '" autocomplete="off"></label>' +
+        '<div class="grid2">' +
+        '<label class="f"><span>Тип *</span><select id="fType">' +
+        DB.TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') +
+        '</select></label>' +
+        '<label class="f"><span>Статус</span><select id="fStatus">' +
+        DB.STATUSES.map(function (x) { return '<option value="' + x[0] + '"' + (st.status === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') +
+        '</select></label>' +
+        '</div>' +
+        '<label class="f"><span>Место *</span><select id="fLoc">' + locOptions(st.location_id) + '</select></label>' +
+        '<div id="fFields">' + fieldsHtml(type, st, it, 'f_') + '</div>' +
+        '<label class="f"><span>Заметка</span><textarea id="fNotes" rows="2">' + esc(st.notes || '') + '</textarea></label>' +
+        '<button class="btn primary big" id="fSave">' + (isNew ? 'Создать и напечатать' : 'Сохранить') + '</button>' +
+        (isNew ? '<button class="btn big ghost" id="fSaveOnly" style="margin-top:8px">Создать без печати</button>' : '');
+    }
+
+    openSheet(head());
+    wire();
+
+    function wire() {
+      $('fType').onchange = function () {
+        type = this.value;
+        $('fFields').innerHTML = fieldsHtml(type, st, it, 'f_');
+      };
+      $('fSave').onclick = function () { save(isNew); };
+      if ($('fSaveOnly')) $('fSaveOnly').onclick = function () { save(false); };
+    }
 
     async function save(andPrint) {
       var name = $('fName').value.trim();
       if (!name) return toast('Нужно название', 'bad');
-      var type = $('fType').value;
+      type = $('fType').value;
       var locId = $('fLoc').value;
       if (!locId) return toast('Нужно место — сначала создай его во «Местах»', 'bad');
 
@@ -1906,31 +2197,26 @@ var DB = (function () {
       for (var i = 0; i < S.items.length; i++) {
         if (S.items[i].name.toLowerCase() === name.toLowerCase() && S.items[i].type === type) { item = S.items[i]; break; }
       }
-      if (!item) item = { id: DB.uid(), name: name, type: type, default_unit: $('fUnit').value, extra: {} };
+      if (!item) item = { id: DB.uid(), name: name, type: type, extra: {} };
       item.name = name;
       item.type = type;
-      item.manufacturer = $('fMan').value.trim();
-      item.catalog_no = $('fCat').value.trim();
-      await DB.put('items', item);
 
       var fresh = !st.id;
       st.id = st.id || DB.uid();
-      st.item_id = item.id;
       if (!st.code) {
         st.code = pendingCode || await DB.newCode(type);
         pendingCode = null;
       }
+      readFields(type, st, item, 'f_');
+      await DB.put('items', item);
+
+      st.item_id = item.id;
       st.location_id = locId;
-      st.lot = $('fLot').value.trim();
-      st.qty = $('fQty').value === '' ? '' : parseFloat($('fQty').value);
-      st.unit = $('fUnit').value.trim();
-      st.expiry = $('fExp').value;
-      st.project = $('fProj').value.trim();
       st.owner = st.owner || INI();
       st.status = $('fStatus').value;
       st.notes = $('fNotes').value.trim();
       st.received_at = st.received_at || DB.nowIso();
-      st.extra = st.extra || {};
+      st.unit = st.unit || '';
       await DB.put('stock', st);
       await DB.logMove({
         stock_id: st.id, type: fresh ? 'receipt' : 'adjust',
@@ -1938,8 +2224,7 @@ var DB = (function () {
         loc_to: locId, note: fresh ? 'создано' : 'правка', operator: INI(),
         session_id: S.session ? S.session.id : null
       });
-      // Позиция, заведённая прямо в сессии, сразу считается найденной:
-      // пересканировать только что наклеенную этикетку незачем.
+
       if (fresh && S.session) {
         var row = {
           id: DB.uid(), session_id: S.session.id, stock_id: st.id,
@@ -1953,12 +2238,9 @@ var DB = (function () {
       await reload();
       if (fresh && S.session) renderAuditRun();
       toast(fresh ? 'Создано: ' + st.code + (S.session ? ' · отмечено в сессии' : '') : 'Сохранено', 'ok');
-      if (andPrint) showPrintForm(st); else closeSheet();
+      if (andPrint) showPrintForm({ kind: 'stock', obj: st }); else closeSheet();
       return st;
     }
-
-    $('fSave').onclick = function () { save(isNew); };
-    if ($('fSaveOnly')) $('fSaveOnly').onclick = function () { save(false); };
   }
 
   $('btnNew').onclick = function () { showStockForm(null); };
@@ -1968,6 +2250,7 @@ var DB = (function () {
     var isNew = !loc;
     loc = loc || { kind: 'box', temp_c: '' };
     openSheet('<div class="sheetTitle">' + (isNew ? 'Новое место' : 'Правка места') + '</div>' +
+      (loc.code ? '<div class="sm dim mono" style="margin-bottom:10px">' + esc(loc.code) + '</div>' : '') +
       '<label class="f"><span>Название *</span><input id="lName" value="' + esc(loc.name || '') + '"></label>' +
       '<div class="grid2">' +
       '<label class="f"><span>Тип</span><select id="lKind">' +
@@ -1988,6 +2271,7 @@ var DB = (function () {
         return toast('Нельзя вложить место в само себя', 'bad');
       }
       loc.id = loc.id || DB.uid();
+      if (!loc.code) loc.code = await DB.newLocationCode();
       loc.name = name;
       loc.kind = $('lKind').value;
       loc.temp_c = $('lTemp').value === '' ? null : parseFloat($('lTemp').value);
@@ -2006,14 +2290,28 @@ var DB = (function () {
   $('btnNewLoc').onclick = function () { showLocForm(null); };
 
   function showLocContents(locId) {
+    var loc = locOf(locId);
+    if (!loc) return;
     var ids = DB.descendants(S.locations, locId);
-    var rows = S.stock.filter(function (s) { return ids.indexOf(s.location_id) >= 0; });
-    var h = '<div class="sheetTitle">' + esc(S.paths[locId]) + '</div>' +
-      '<div class="sm dim" style="margin-bottom:12px">' + rows.length + ' позиций, включая вложенные места</div>';
+    var rows = S.stock.filter(function (s) { return ids.indexOf(s.location_id) >= 0 && s.status !== 'discarded'; });
+    var h = '<div class="sheetTitle">' + esc(loc.name) + '</div>' +
+      '<div class="sm dim" style="margin-bottom:10px">' +
+      (loc.code ? '<span class="mono">' + esc(loc.code) + '</span> \u00b7 ' : '') +
+      esc(S.paths[locId]) + '</div>' +
+      '<div class="xs dim" style="margin-bottom:12px">' + rows.length + ' позиций, включая вложенные места</div>' +
+      '<div class="grid2" style="margin-bottom:10px">' +
+      '<button class="btn primary" id="lcPrint">Этикетка места</button>' +
+      '<button class="btn" id="lcAudit">Инвентаризация отсюда</button>' +
+      '</div>';
     h += rows.length ? '<div class="list">' + rows.map(function (st) {
       return '<div class="item" data-stock="' + st.id + '">' + stockRowHtml(st) + '</div>';
     }).join('') + '</div>' : '<div class="empty">Пусто</div>';
     openSheet(h);
+    $('lcPrint').onclick = async function () {
+      if (!loc.code) { loc.code = await DB.newLocationCode(); await DB.put('locations', loc); await reload(); }
+      showPrintForm({ kind: 'loc', obj: loc });
+    };
+    $('lcAudit').onclick = function () { closeSheet(); startAudit(locId, true); };
   }
 
   // ---------- печать ----------
@@ -2061,7 +2359,72 @@ var DB = (function () {
     $('piOff').onclick = async function () { await Printer.disconnect(); updatePrinterBtn(); closeSheet(); toast('Принтер отключён'); };
   }
 
-  async function printSpec(spec, copies) {
+  // ---------- очередь печати ----------
+  // Печать одной этикетки занимает секунды, и ждать её в форме переписи
+  // незачем: запись уже создана, можно вводить следующую, а этикетка
+  // допечатается фоном. Очередь строго последовательная — два задания
+  // одновременно принтер не переварит.
+  var printQueue = [], printWorking = false;
+
+  async function ensurePrinter() {
+    if (Printer.isConnected()) return true;
+    if (!Printer.canPrint()) { toast(Printer.unsupportedReason(), 'bad'); return false; }
+    try { await Printer.connect(); updatePrinterBtn(); return true; }
+    catch (err) { toast(err.message, 'bad'); return false; }
+  }
+
+  function enqueuePrint(spec, copies, stockId) {
+    printQueue.push({ spec: spec, copies: copies || 1, stockId: stockId || null });
+    updateCensusBadge();
+    pumpPrintQueue();
+  }
+
+  async function pumpPrintQueue() {
+    if (printWorking) return;
+    printWorking = true;
+    while (printQueue.length) {
+      var job = printQueue[0];
+      var okFlag = false;
+      try {
+        var r = Labels.render(job.spec);
+        await Printer.printCanvas(r.canvas, job.copies);
+        okFlag = true;
+      } catch (e) {
+        toast('Печать: ' + e.message, 'bad');
+      }
+      printQueue.shift();
+      if (job.stockId) {
+        var st = stockOf(job.stockId);
+        if (st) { st.label_printed = okFlag; await DB.put('stock', st); }
+      }
+      updateCensusBadge();
+      if (!okFlag) {
+        var lost = printQueue.length;
+        printQueue.length = 0;
+        if (lost) toast('Очередь печати остановлена, не напечатано ' + (lost + 1), 'bad');
+        break;
+      }
+    }
+    printWorking = false;
+    updateCensusBadge();
+  }
+
+  function updateCensusBadge() {
+    var el = $('cBadge');
+    if (!el || !S.census) return;
+    var unprinted = S.census.entered.filter(function (id) {
+      var st = stockOf(id);
+      return st && !st.label_printed;
+    }).length;
+    var parts = ['заведено ' + S.census.entered.length];
+    if (printQueue.length || printWorking) parts.push('печатается ' + (printQueue.length || 1));
+    else if (unprinted) parts.push('без этикетки ' + unprinted);
+    el.textContent = parts.join(' · ');
+    var btn = $('cReprint');
+    if (btn) btn.style.display = (!printQueue.length && !printWorking && unprinted) ? '' : 'none';
+  }
+
+  async function printSpec(spec, copies, quiet) {
     if (!Printer.isConnected()) {
       if (!Printer.canPrint()) { toast(Printer.unsupportedReason(), 'bad'); return false; }
       try { await Printer.connect(); updatePrinterBtn(); }
@@ -2070,9 +2433,16 @@ var DB = (function () {
     var r = Labels.render(spec);
     try {
       var msg = await Printer.printCanvas(r.canvas, copies || 1);
-      toast(msg, 'ok');
+      if (!quiet) toast(msg, 'ok');
       return true;
     } catch (err) { toast(err.message, 'bad'); return false; }
+  }
+
+  // В наборе несколько пробирок, и на каждую нужна своя этикетка с тем же
+  // кодом: нашёл одинокий флакон — отсканировал — понял, от какого он набора.
+  function labelCount(st) {
+    var n = parseInt((st.extra || {}).labels, 10);
+    return n > 0 && n <= 20 ? n : 1;
   }
 
   function defaultTpl() {
@@ -2080,8 +2450,21 @@ var DB = (function () {
     return Labels.TPL[v] && !Labels.TPL[v].service ? v : 'rect30';
   }
 
-  function showPrintForm(st) {
-    var base = labelSpec(st);
+  function subjSpec(subj) {
+    return subj.kind === 'loc' ? labelSpecLoc(subj.obj) : labelSpec(subj.obj);
+  }
+  function subjName(subj) {
+    return subj.kind === 'loc' ? (S.paths[subj.obj.id] || subj.obj.name) : displayName(subj.obj);
+  }
+  function subjPool(subj, exceptId) {
+    var pool = subj.kind === 'loc' ? S.locations : S.stock;
+    return pool.filter(function (x) { return x.id !== exceptId && x.code; }).slice(0, 300);
+  }
+
+  function showPrintForm(subj) {
+    if (subj && !subj.kind) subj = { kind: 'stock', obj: subj };
+    var st = subj.obj;
+    var base = subjSpec(subj);
     var ids = Object.keys(Labels.TPL).filter(function (k) { return !Labels.TPL[k].service; });
     var start = defaultTpl();
 
@@ -2103,7 +2486,8 @@ var DB = (function () {
       '<label class="f"><span>Строка 2</span><input id="pL2" value="' + esc(base.lines[1]) + '"></label>' +
       '</details>' +
       '<div class="grid2">' +
-      '<label class="f"><span>Копий</span><input id="pCopies" type="number" value="1" min="1" max="20" inputmode="numeric"></label>' +
+      '<label class="f"><span>Копий</span><input id="pCopies" type="number" value="' +
+      (subj.kind === 'stock' ? labelCount(st) : 1) + '" min="1" max="20" inputmode="numeric"></label>' +
       '<label class="f"><span>Плотность</span><input id="pDens" type="number" value="' + Printer.CFG.density + '" min="1" max="5" inputmode="numeric"></label>' +
       '</div>' +
       '<div class="bar"><div id="pBar"></div></div>' +
@@ -2112,8 +2496,12 @@ var DB = (function () {
     function spec() {
       var tpl = $('pTpl').value;
       var sel = $('pCode2');
-      var other = sel && sel.value && sel.value !== '__next' ? stockOf(sel.value) : null;
-      var o2 = other ? labelSpec(other) : null;
+      var other = null;
+      if (sel && sel.value && sel.value !== '__next') {
+        var pool = subj.kind === 'loc' ? S.locations : S.stock;
+        for (var pi = 0; pi < pool.length; pi++) if (pool[pi].id === sel.value) other = pool[pi];
+      }
+      var o2 = other ? subjSpec({ kind: subj.kind, obj: other }) : null;
       return {
         template: tpl,
         code: st.code,
@@ -2206,10 +2594,15 @@ var DB = (function () {
   };
 
   // ---------- сканер ----------
-  // Детектору отдаётся не весь кадр, а квадрат по рамке и не крупнее 720 px:
-  // меньше пикселей на разбор, меньше фона, заметно выше частота попыток.
-  var scanState = { stream: null, running: false, detector: null, onFound: null, torch: false, tick: 0 };
+  // Детектору отдаётся не весь кадр, а квадрат по рамке и не крупнее 720 px.
+  // В непрерывном режиме камера не закрывается: результат каждой отметки
+  // показывается нижней панелью, повтор того же кода пару секунд игнорируется.
+  var scanState = {
+    stream: null, running: false, detector: null, onFound: null,
+    torch: false, tick: 0, continuous: false, recent: {}, counter: null
+  };
   var work = null, wctx = null;
+  var flashTimer = 0;
 
   function workCanvas() {
     if (!work) {
@@ -2219,9 +2612,26 @@ var DB = (function () {
     return wctx;
   }
 
-  async function openScanner(onFound) {
+  function scanPanel(res) {
+    var bar = $('camBar');
+    bar.className = res && res.kind ? res.kind : '';
+    $('camLastTitle').textContent = res && res.title ? res.title : 'наведи на код';
+    $('camLastSub').textContent = res && res.sub ? res.sub : '';
+    if (scanState.counter) $('camCount').textContent = scanState.counter() || '';
+    if (res) {
+      bar.classList.add('flash');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () { bar.classList.remove('flash'); }, 220);
+    }
+  }
+
+  async function openScanner(onFound, opts) {
+    opts = opts || {};
     scanState.onFound = onFound;
-    $('camStatus').textContent = 'поиск кода…';
+    scanState.continuous = !!opts.continuous;
+    scanState.counter = opts.counter || null;
+    scanState.recent = {};
+    scanPanel(null);
     try {
       scanState.stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -2236,7 +2646,6 @@ var DB = (function () {
 
     var track = scanState.stream.getVideoTracks()[0];
     var caps = (track && track.getCapabilities) ? (track.getCapabilities() || {}) : {};
-    // непрерывный автофокус: на старых камерах это главный источник промахов
     if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
       try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
     }
@@ -2248,17 +2657,18 @@ var DB = (function () {
     v.srcObject = scanState.stream;
     await v.play().catch(function () {});
     $('camWrap').classList.add('open');
+    $('camHint').textContent = scanState.continuous ? 'сканируй подряд, камера не закроется' : 'код в рамку, вплотную не надо';
     scanState.running = true;
     scanState.tick = 0;
 
     if (!scanState.detector) {
       if (!('BarcodeDetector' in window)) {
-        $('camStatus').textContent = 'BarcodeDetector недоступен — введи код вручную';
+        $('camLastTitle').textContent = 'BarcodeDetector недоступен';
+        $('camLastSub').textContent = 'вводи код вручную';
         return;
       }
       scanState.detector = new window.BarcodeDetector({ formats: ['data_matrix', 'qr_code', 'code_128'] });
     }
-    if (v.videoWidth) $('camStatus').textContent = v.videoWidth + '×' + v.videoHeight;
     loop();
   }
 
@@ -2281,7 +2691,6 @@ var DB = (function () {
     try {
       if (v.readyState >= 2 && v.videoWidth) {
         var src;
-        // каждый пятый проход смотрим весь кадр: вдруг код мимо рамки
         if (scanState.tick % 5 === 4) {
           src = v;
         } else {
@@ -2299,21 +2708,34 @@ var DB = (function () {
         var found = await scanState.detector.detect(src);
         if (found && found.length) {
           var code = String(found[0].rawValue || '').trim().toUpperCase();
-          if (code) {
-            if (navigator.vibrate) navigator.vibrate(40);
-            var cb = scanState.onFound;
-            closeScanner();
-            if (cb) cb(code);
-            return;
-          }
+          if (code) handleHit(code);
         }
       }
     } catch (e) { /* кадр не разобрался — следующий */ }
     setTimeout(loop, 40);
   }
 
+  function handleHit(code) {
+    var cb = scanState.onFound;
+    if (!scanState.continuous) {
+      if (navigator.vibrate) navigator.vibrate(40);
+      closeScanner();
+      if (cb) cb(code);
+      return;
+    }
+    var now = Date.now();
+    if (scanState.recent[code] && now - scanState.recent[code] < 2000) return;
+    scanState.recent[code] = now;
+    var res = cb ? cb(code) : null;
+    if (res === 'close') { closeScanner(); return; }
+    if (navigator.vibrate) navigator.vibrate(res && res.kind === 'ok' ? 40 : 18);
+    scanPanel(res);
+  }
+
   function closeScanner() {
     scanState.running = false;
+    scanState.continuous = false;
+    scanState.counter = null;
     if (scanState.stream) {
       var t = scanState.stream.getVideoTracks()[0];
       if (t && scanState.torch) { try { t.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {} }
@@ -2329,6 +2751,8 @@ var DB = (function () {
   function handleCode(code) {
     var st = stockByCode(code);
     if (st) { showStockCard(st); return; }
+    var loc = locByCode(code);
+    if (loc) { showLocContents(loc.id); return; }
     openSheet('<div class="sheetTitle">Код не найден</div>' +
       '<div class="sm dim mono" style="margin:6px 0 14px">' + esc(code) + '</div>' +
       '<div class="sm" style="margin-bottom:14px">В базе такой позиции нет. Это нормально, если этикетка от старого запаса — заведи позицию и переклеивать ничего не придётся.</div>' +
@@ -2350,22 +2774,238 @@ var DB = (function () {
   };
   $('manualCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('btnManual').click(); });
 
+  // ---------- перепись ----------
+  // Цикл: назвал → создалось → этикетка поехала в печать → форма готова
+  // к следующему. Место и тип липкие, «ещё такой же» повторяет запись
+  // целиком, но с новым кодом — одинаковые позиции всё равно разные объекты.
+  function renderCensusLocs() { $('censusLoc').innerHTML = locOptions(null); }
+
+  function startCensus(locId) {
+    if (!locId) return toast('Сначала создай место', 'bad');
+    S.census = { loc_id: locId, type: localStorage.getItem('censusType') || 'reagent', entered: [], draft: {}, last: null };
+    goto('s-audit');
+    renderCensusRun();
+  }
+
+  $('btnCensusStart').onclick = function () { startCensus($('censusLoc').value); };
+  $('btnCensusScan').onclick = function () {
+    openScanner(function (code) {
+      var loc = locByCode(code);
+      if (!loc) {
+        var st = stockByCode(code);
+        if (st && st.location_id) loc = locOf(st.location_id);
+      }
+      if (!loc) return { kind: 'miss', title: 'Не место', sub: code };
+      $('censusLoc').value = loc.id;
+      startCensus(loc.id);
+      return null;
+    });
+  };
+
+  function renderCensusRun() {
+    $('auditIdle').style.display = 'none';
+    $('auditRun').style.display = 'none';
+    var box = $('censusRun');
+    box.style.display = 'block';
+    if (!S.census) { box.style.display = 'none'; $('auditIdle').style.display = 'block'; return; }
+
+    var c = S.census;
+    var d = c.draft || {};
+    var pseudo = { qty: d.qty || '', unit: d.unit || '', lot: '', expiry: '', project: d.project || '', extra: d.extra || {} };
+    var pseudoItem = { manufacturer: d.manufacturer || '', catalog_no: '' };
+    var unprinted = c.entered.filter(function (id) { var st = stockOf(id); return st && !st.label_printed; }).length;
+
+    box.innerHTML =
+      '<div class="card">' +
+      '<div class="row"><div class="grow" style="font-weight:650">' + esc(S.paths[c.loc_id] || '') + '</div>' +
+      '<button class="btn sm ghost" id="cLoc">сменить</button></div>' +
+      '<div class="xs dim" id="cBadge">заведено ' + c.entered.length + '</div>' +
+      '<button class="btn sm" id="cReprint" style="margin-top:8px;display:' + (unprinted ? '' : 'none') + '">Допечатать</button>' +
+      '</div>' +
+
+      '<label class="f"><span>Название *</span><input id="c_name" list="itemNames" value="' + esc(d.name || '') + '" autocomplete="off" enterkeyhint="done"></label>' +
+      '<label class="f"><span>Тип</span><select id="c_type">' +
+      DB.TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (c.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') +
+      '</select></label>' +
+      '<div id="cFields">' + fieldsHtml(c.type, pseudo, pseudoItem, 'c_') + '</div>' +
+
+      '<button class="btn primary big" id="cAdd">Создать и напечатать</button>' +
+      '<div class="grid2" style="margin-top:8px">' +
+      '<button class="btn" id="cAgain"' + (c.last ? '' : ' disabled') + '>Ещё такой же</button>' +
+      '<button class="btn ghost" id="cUndo"' + (c.entered.length ? '' : ' disabled') + '>Отменить последнюю</button>' +
+      '</div>' +
+      '<button class="btn big ghost" id="cDone" style="margin-top:8px">Закончить перепись</button>' +
+
+      (c.entered.length ? '<h2>Заведено</h2><div class="list">' + c.entered.slice(0, 12).map(function (id) {
+        var st = stockOf(id);
+        if (!st) return '';
+        return '<div class="item" data-stock="' + st.id + '">' +
+          '<div class="grow"><div class="sm ell">' + esc(displayName(st)) + '</div>' +
+          '<div class="xs dim"><span class="mono">' + esc(st.code) + '</span>' +
+          (st.label_printed ? '' : ' · этикетка не напечатана') + '</div></div></div>';
+      }).join('') + '</div>' : '');
+
+    $('c_type').onchange = function () {
+      S.census.type = this.value;
+      localStorage.setItem('censusType', this.value);
+      $('cFields').innerHTML = fieldsHtml(this.value, pseudo, pseudoItem, 'c_');
+    };
+    $('cLoc').onclick = function () { S.census = null; renderCensusRun(); goto('s-audit'); };
+    $('cAdd').onclick = function () { censusAdd(false); };
+    $('cAgain').onclick = function () { censusAdd(true); };
+    $('cUndo').onclick = censusUndo;
+    $('cDone').onclick = function () {
+      var n = S.census.entered.length;
+      S.census = null;
+      $('censusRun').style.display = 'none';
+      $('auditIdle').style.display = 'block';
+      renderAll();
+      if (!n) return toast('Перепись закрыта');
+      // Данные живут только в этом браузере, поэтому предлагаем копию сразу,
+      // пока работа свежая, а не когда что-то уже потерялось.
+      openSheet('<div class="sheetTitle">Перепись закрыта</div>' +
+        '<div class="sm dim" style="margin:6px 0 14px">Заведено ' + n + ' позиций. ' +
+        'База лежит только в этом браузере — копия займёт секунду.</div>' +
+        '<button class="btn primary big" id="cdBackup">Сохранить резервную копию</button>' +
+        '<button class="btn big ghost" id="cdLater" style="margin-top:8px">Позже</button>');
+      $('cdBackup').onclick = function () { closeSheet(); $('btnBackup').click(); };
+      $('cdLater').onclick = closeSheet;
+    };
+    $('cReprint').onclick = censusReprint;
+    updateCensusBadge();
+  }
+
+  function censusDraftFromForm() {
+    var c = S.census;
+    var st = { extra: {} }, item = {};
+    readFields(c.type, st, item, 'c_');
+    return {
+      name: $('c_name').value.trim(),
+      qty: st.qty, unit: st.unit, lot: st.lot, expiry: st.expiry,
+      project: st.project, extra: st.extra,
+      manufacturer: item.manufacturer, catalog_no: item.catalog_no
+    };
+  }
+
+  async function censusAdd(repeatLast) {
+    var c = S.census;
+    if (!c) return;
+    var d = repeatLast ? c.last : censusDraftFromForm();
+    if (!d || !d.name) return toast(repeatLast ? 'Нечего повторять' : 'Нужно название', 'bad');
+    // requestDevice требует живого жеста пользователя, поэтому подключаемся
+    // первым делом, до записи в базу, а не после цепочки await
+    var printerReady = Printer.isConnected() ? true : await ensurePrinter();
+    c.last = d;
+    c.type = $('c_type') ? $('c_type').value : c.type;
+
+    var item = null;
+    for (var i = 0; i < S.items.length; i++) {
+      if (S.items[i].name.toLowerCase() === d.name.toLowerCase() && S.items[i].type === c.type) { item = S.items[i]; break; }
+    }
+    if (!item) item = { id: DB.uid(), name: d.name, type: c.type, extra: {} };
+    item.manufacturer = d.manufacturer || item.manufacturer || '';
+    item.catalog_no = d.catalog_no || item.catalog_no || '';
+    await DB.put('items', item);
+
+    var st = {
+      id: DB.uid(), code: await DB.newCode(c.type), item_id: item.id,
+      location_id: c.loc_id, lot: d.lot || '', qty: d.qty === undefined ? '' : d.qty,
+      unit: d.unit || '', expiry: d.expiry || '', received_at: DB.nowIso(), opened_at: '',
+      owner: INI(), status: 'in_stock', project: d.project || '', notes: '',
+      extra: JSON.parse(JSON.stringify(d.extra || {})), label_printed: false
+    };
+    await DB.put('stock', st);
+    await DB.logMove({
+      stock_id: st.id, type: 'receipt', qty_delta: parseFloat(st.qty) || 0,
+      loc_to: c.loc_id, note: 'перепись', operator: INI()
+    });
+    S.stock.push(st);
+    if (S.items.indexOf(item) < 0) S.items.push(item);
+    c.entered.unshift(st.id);
+
+    if (S.session) {
+      var row = {
+        id: DB.uid(), session_id: S.session.id, stock_id: st.id,
+        expected_qty: null, found_qty: st.qty === '' ? null : st.qty,
+        result: 'new_registered', note: 'заведено в сессии'
+      };
+      S.sessionRows.push(row);
+      await DB.put('audit_results', row);
+    }
+
+    // форма готовится к следующей позиции: название и то, что меняется
+    // от штуки к штуке, очищается; тип, единица и производитель остаются
+    c.draft = Object.assign({}, d, { name: '', lot: '', expiry: '', catalog_no: '', extra: {} });
+    await reload();
+    renderCensusRun();
+    if (!repeatLast) {
+      var n = $('c_name');
+      if (n) n.focus();
+    }
+
+    // этикетка уходит фоном: запись уже есть, ждать принтер незачем
+    if (printerReady) {
+      var spec = Object.assign({ template: defaultTpl(), code: st.code, ini: INI() }, labelSpec(st));
+      enqueuePrint(spec, labelCount(st), st.id);
+    }
+    toast(st.code + ' · ' + displayName(st), 'ok');
+  }
+
+  async function censusUndo() {
+    var c = S.census;
+    if (!c || !c.entered.length) return;
+    var id = c.entered[0];
+    var st = stockOf(id);
+    if (!st) { c.entered.shift(); return renderCensusRun(); }
+    if (!confirm('Удалить «' + displayName(st) + '» (' + st.code + ')? Если этикетка уже наклеена, сними её.')) return;
+    var moves = await DB.byIndex('movements', 'stock_id', id);
+    for (var i = 0; i < moves.length; i++) await DB.del('movements', moves[i].id);
+    if (S.session) {
+      for (var k = S.sessionRows.length - 1; k >= 0; k--) {
+        if (S.sessionRows[k].stock_id === id) {
+          await DB.del('audit_results', S.sessionRows[k].id);
+          S.sessionRows.splice(k, 1);
+        }
+      }
+    }
+    await DB.del('stock', id);
+    c.entered.shift();
+    await reload();
+    renderCensusRun();
+    toast('Удалено', 'ok');
+  }
+
+  async function censusReprint() {
+    var c = S.census;
+    if (!c) return;
+    if (!await ensurePrinter()) return;
+    var pending = c.entered.filter(function (id) {
+      var st = stockOf(id);
+      return st && !st.label_printed;
+    }).reverse();
+    for (var i = 0; i < pending.length; i++) {
+      var st = stockOf(pending[i]);
+      if (!st) continue;
+      var spec = Object.assign({ template: defaultTpl(), code: st.code, ini: INI() }, labelSpec(st));
+      enqueuePrint(spec, labelCount(st), st.id);
+    }
+  }
+
   // ---------- инвентаризация ----------
   function renderAuditLocs() {
     $('auditLoc').innerHTML = locOptions(null);
   }
 
-  $('btnAuditStart').onclick = async function () {
-    var locId = $('auditLoc').value;
+  async function startAudit(locId, deep) {
     if (!locId) return toast('Сначала создай место', 'bad');
-    var deep = $('auditDeep').checked;
+    if (S.session && !confirm('Уже открыта сессия. Начать новую? Текущая останется незакрытой.')) return;
     var ids = deep ? DB.descendants(S.locations, locId) : [locId];
     var expected = S.stock.filter(function (s) {
       return ids.indexOf(s.location_id) >= 0 && s.status !== 'discarded';
     });
 
     S.session = {
-      id: DB.uid(), location_id: locId, deep: deep,
+      id: DB.uid(), location_id: locId, deep: !!deep,
       started_at: DB.nowIso(), closed_at: null,
       operator: INI(), note: ''
     };
@@ -2378,12 +3018,34 @@ var DB = (function () {
       };
     });
     for (var i = 0; i < S.sessionRows.length; i++) await DB.put('audit_results', S.sessionRows[i]);
+    goto('s-audit');
     renderAuditRun();
     toast('Сессия открыта: ' + expected.length + ' позиций', 'ok');
+  }
+
+  $('btnAuditStart').onclick = function () {
+    startAudit($('auditLoc').value, $('auditDeep').checked);
+  };
+
+  $('btnAuditScan').onclick = function () {
+    openScanner(function (code) {
+      var loc = locByCode(code);
+      if (!loc) {
+        var st = stockByCode(code);
+        if (st && st.location_id) {
+          loc = locOf(st.location_id);
+          if (loc) toast('Это позиция — беру её место: ' + loc.name);
+        }
+      }
+      if (!loc) return toast('Код ' + code + ' не похож на место', 'bad');
+      $('auditLoc').value = loc.id;
+      startAudit(loc.id, $('auditDeep').checked);
+    });
   };
 
   function renderAuditRun() {
     $('auditIdle').style.display = 'none';
+    $('censusRun').style.display = 'none';
     var box = $('auditRun');
     box.style.display = 'block';
     if (!S.session) { box.style.display = 'none'; $('auditIdle').style.display = 'block'; return; }
@@ -2405,10 +3067,11 @@ var DB = (function () {
       '</div>' +
       '<div class="grid2" style="margin-top:8px">' +
       '<button class="btn ghost sm" id="aAddNew">+ незарегистрированное</button>' +
-      '<button class="btn ok sm" id="aClose">Закрыть сессию</button>' +
-      '</div>';
+      '<button class="btn ok sm" id="aClose">Закрыть сверку</button>' +
+      '</div>' +
+      '<button class="btn ghost sm" id="aPause" style="width:100%;margin-top:8px">Отложить, вернусь позже</button>';
 
-    var order = { pending: 0, qty_mismatch: 1, ok: 2, new_registered: 3, unlisted_found: 3, not_found: 4 };
+    var order = { pending: 0, qty_mismatch: 1, ok: 2, new_registered: 3, unlisted_found: 3, not_found: 4, not_checked: 5 };
     var rows = S.sessionRows.slice().sort(function (a, b) {
       return (order[a.result] - order[b.result]) ||
         String(displayName(stockOf(a.stock_id) || {}) || '').localeCompare(displayName(stockOf(b.stock_id) || {}) || '', 'ru');
@@ -2430,7 +3093,15 @@ var DB = (function () {
 
     box.innerHTML = h;
 
-    $('aScan').onclick = function () { openScanner(auditMark); };
+    $('aScan').onclick = function () {
+      openScanner(auditMark, {
+        continuous: true,
+        counter: function () {
+          var done = S.sessionRows.filter(function (r) { return r.result !== 'pending'; }).length;
+          return done + ' / ' + S.sessionRows.length;
+        }
+      });
+    };
     $('aManualGo').onclick = function () {
       var c = $('aManual').value.trim().toUpperCase();
       $('aManual').value = '';
@@ -2439,6 +3110,7 @@ var DB = (function () {
     $('aManual').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('aManualGo').click(); });
     $('aAddNew').onclick = function () { showStockForm(null); };
     $('aClose').onclick = closeAuditSession;
+    $('aPause').onclick = pauseAudit;
 
     box.onclick = function (e) {
       var row = e.target.closest('[data-audit-row]');
@@ -2452,30 +3124,47 @@ var DB = (function () {
   function auditMark(code) {
     var st = stockByCode(code);
     if (!st) {
-      toast('Код ' + code + ' не в базе — заведи позицию', 'bad');
-      handleCode(code);
-      return;
+      var loc = locByCode(code);
+      if (loc) return { kind: 'dup', title: 'Это место', sub: loc.name };
+      setTimeout(function () { handleCode(code); }, 0);
+      return 'close';
     }
     var row = null;
     for (var i = 0; i < S.sessionRows.length; i++) if (S.sessionRows[i].stock_id === st.id) row = S.sessionRows[i];
+    var note = '';
     if (!row) {
+      // Отсканирована здесь — значит лежит здесь. Иначе база так и будет
+      // думать, что позиция в старом боксе.
+      var from = st.location_id;
+      var scope = S.session.deep ? DB.descendants(S.locations, S.session.location_id) : [S.session.location_id];
+      var moved = scope.indexOf(from) < 0;
+      if (moved) {
+        st.location_id = S.session.location_id;
+        if (st.status === 'missing') st.status = 'in_stock';
+        DB.put('stock', st);
+        DB.logMove({
+          stock_id: st.id, type: 'move', qty_delta: 0, loc_from: from, loc_to: st.location_id,
+          note: 'найдено при сверке здесь', operator: INI(), session_id: S.session.id
+        });
+      }
       row = {
         id: DB.uid(), session_id: S.session.id, stock_id: st.id,
         expected_qty: st.qty === '' ? null : st.qty, found_qty: st.qty === '' ? null : st.qty,
-        result: 'unlisted_found', note: 'лежало не там, где ожидалось'
+        result: 'unlisted_found',
+        note: moved ? 'перенесено сюда из «' + (S.paths[from] || '?') + '»' : 'найдено не по списку'
       };
       S.sessionRows.push(row);
-      toast('Не по списку: ' + displayName(st), 'ok');
+      note = moved ? 'перенесено сюда' : 'не по списку';
     } else if (row.result !== 'pending') {
-      toast('Уже отмечено: ' + displayName(st));
+      return { kind: 'dup', title: displayName(st), sub: st.code + ' · уже отмечено' };
     } else {
       row.found_qty = row.expected_qty;
       row.result = 'ok';
-      toast('✓ ' + displayName(st), 'ok');
+      note = 'отмечено';
     }
     DB.put('audit_results', row);
     renderAuditRun();
-    setTimeout(function () { if (S.session) openScanner(auditMark); }, 450);
+    return { kind: 'ok', title: displayName(st), sub: st.code + ' · ' + note };
   }
 
   function auditRowSheet(r) {
@@ -2510,23 +3199,54 @@ var DB = (function () {
     };
     $('arMiss').onclick = function () { fin('not_found', null); };
     $('arReset').onclick = function () { fin('pending', null); };
-    $('arPrint').onclick = function () { if (st.id) showPrintForm(st); };
+    $('arPrint').onclick = function () { if (st.id) showPrintForm({ kind: 'stock', obj: st }); };
+  }
+
+  function pauseAudit() {
+    $('auditRun').style.display = 'none';
+    $('censusRun').style.display = 'none';
+    $('auditIdle').style.display = 'block';
+    renderAuditPending();
+    toast('Сверка отложена — отметки сохранены');
   }
 
   async function closeAuditSession() {
+    if (!S.session) return;
     var pending = S.sessionRows.filter(function (r) { return r.result === 'pending'; });
-    if (pending.length) {
-      if (!confirm(pending.length + ' позиций не отмечено. Пометить их как «не найдено» и закрыть сессию?')) return;
-      pending.forEach(function (r) { r.result = 'not_found'; r.found_qty = null; });
+    if (!pending.length) return finishAudit('missing');
+
+    // Неотмеченное не всегда значит «потеряно»: сверку могли прервать,
+    // или часть полки сознательно не смотрели. Решает человек, а не приложение.
+    openSheet('<div class="sheetTitle">Закрыть сверку</div>' +
+      '<div class="sm dim" style="margin:6px 0 14px">Не отмечено ' + pending.length +
+      ' из ' + S.sessionRows.length + '. Что с ними сделать?</div>' +
+      '<button class="btn bad big" id="caMissing">Пометить «не найдено»</button>' +
+      '<div class="xs dim" style="margin:6px 0 12px">Статус сменится, в журнал попадёт запись. Так и должно быть, если полку прошли целиком.</div>' +
+      '<button class="btn big" id="caSkip">Оставить статусы как есть</button>' +
+      '<div class="xs dim" style="margin:6px 0 12px">В отчёт попадут как «не проверено». Для случая, когда прошли только часть.</div>' +
+      '<button class="btn big ghost" id="caPause">Не закрывать, отложить</button>');
+    $('caMissing').onclick = function () { closeSheet(); finishAudit('missing'); };
+    $('caSkip').onclick = function () { closeSheet(); finishAudit('skip'); };
+    $('caPause').onclick = function () { closeSheet(); pauseAudit(); };
+  }
+
+  async function finishAudit(mode) {
+    var i, r, st;
+    for (i = 0; i < S.sessionRows.length; i++) {
+      r = S.sessionRows[i];
+      if (r.result !== 'pending') continue;
+      r.result = mode === 'missing' ? 'not_found' : 'not_checked';
+      r.found_qty = null;
     }
 
     S.session.closed_at = DB.nowIso();
+    S.session.note = mode === 'skip' ? 'неотмеченные оставлены без изменений' : '';
     await DB.put('audit_sessions', S.session);
 
-    for (var i = 0; i < S.sessionRows.length; i++) {
-      var r = S.sessionRows[i];
+    for (i = 0; i < S.sessionRows.length; i++) {
+      r = S.sessionRows[i];
       await DB.put('audit_results', r);
-      var st = stockOf(r.stock_id);
+      st = stockOf(r.stock_id);
       if (!st) continue;
       if (r.result === 'qty_mismatch') {
         var delta = (parseFloat(r.found_qty) || 0) - (parseFloat(r.expected_qty) || 0);
@@ -2535,14 +3255,14 @@ var DB = (function () {
         await DB.put('stock', st);
         await DB.logMove({
           stock_id: st.id, type: 'audit_fix', qty_delta: delta,
-          note: 'инвентаризация', operator: INI(), session_id: S.session.id
+          note: 'сверка', operator: INI(), session_id: S.session.id
         });
       } else if (r.result === 'not_found') {
         st.status = 'missing';
         await DB.put('stock', st);
         await DB.logMove({
           stock_id: st.id, type: 'audit_fix', qty_delta: 0,
-          note: 'не найдено при инвентаризации', operator: INI(), session_id: S.session.id
+          note: 'не найдено при сверке', operator: INI(), session_id: S.session.id
         });
       } else if (r.result === 'ok' && st.status === 'missing') {
         st.status = 'in_stock';
@@ -2550,11 +3270,12 @@ var DB = (function () {
       }
     }
 
-    var sum = { ok: 0, qty_mismatch: 0, not_found: 0, extra: 0 };
-    S.sessionRows.forEach(function (r) {
-      if (r.result === 'ok') sum.ok++;
-      else if (r.result === 'qty_mismatch') sum.qty_mismatch++;
-      else if (r.result === 'not_found') sum.not_found++;
+    var sum = { ok: 0, qty_mismatch: 0, not_found: 0, not_checked: 0, extra: 0 };
+    S.sessionRows.forEach(function (x) {
+      if (x.result === 'ok') sum.ok++;
+      else if (x.result === 'qty_mismatch') sum.qty_mismatch++;
+      else if (x.result === 'not_found') sum.not_found++;
+      else if (x.result === 'not_checked') sum.not_checked++;
       else sum.extra++;
     });
     var sid = S.session.id;
@@ -2564,15 +3285,35 @@ var DB = (function () {
     $('auditIdle').style.display = 'block';
     await reload();
 
-    openSheet('<div class="sheetTitle">Сессия закрыта</div>' +
+    var tiles = [['сошлось', sum.ok], ['расхождений', sum.qty_mismatch]];
+    if (mode === 'missing') tiles.push(['не найдено', sum.not_found]);
+    else tiles.push(['не проверено', sum.not_checked]);
+    tiles.push(['не по списку', sum.extra]);
+
+    openSheet('<div class="sheetTitle">Сверка закрыта</div>' +
       '<div class="stat" style="margin:12px 0">' +
-      '<div><b style="color:var(--ok)">' + sum.ok + '</b><span>сошлось</span></div>' +
-      '<div><b style="color:var(--warn)">' + sum.qty_mismatch + '</b><span>расхождений</span></div>' +
-      '<div><b style="color:var(--bad)">' + sum.not_found + '</b><span>не найдено</span></div>' +
-      '<div><b>' + sum.extra + '</b><span>не по списку</span></div>' +
+      tiles.map(function (t) { return '<div><b>' + t[1] + '</b><span>' + t[0] + '</span></div>'; }).join('') +
       '</div>' +
       '<button class="btn primary big" id="arXlsx">Отчёт в XLSX</button>');
     $('arXlsx').onclick = function () { exportSessionReport(sid); };
+  }
+
+  function renderAuditPending() {
+    var box = $('auditPending');
+    if (!box) return;
+    if (!S.session) { box.innerHTML = ''; return; }
+    var done = S.sessionRows.filter(function (r) { return r.result !== 'pending'; }).length;
+    var total = S.sessionRows.length;
+    box.innerHTML = '<div class="card">' +
+      '<div style="font-weight:650;margin-bottom:2px">Сверка не закрыта</div>' +
+      '<div class="xs dim" style="margin-bottom:10px">' + esc(S.paths[S.session.location_id] || '') +
+      ' · отмечено ' + done + ' из ' + total + '</div>' +
+      '<div class="grid2">' +
+      '<button class="btn primary" id="apResume">Продолжить</button>' +
+      '<button class="btn" id="apClose">Закрыть</button>' +
+      '</div></div>';
+    $('apResume').onclick = function () { renderAuditRun(); };
+    $('apClose').onclick = closeAuditSession;
   }
 
   function renderAuditHistory() {
@@ -2703,6 +3444,7 @@ var DB = (function () {
 
   var RESULT_RU = {
     ok: 'сошлось', qty_mismatch: 'расхождение по количеству', not_found: 'не найдено',
+    not_checked: 'не проверено',
     unlisted_found: 'найдено не по списку', new_registered: 'заведено в сессии', pending: 'не отмечено'
   };
 
@@ -2736,7 +3478,7 @@ var DB = (function () {
         r.expected_qty === null ? '' : r.expected_qty, r.found_qty === null ? '' : r.found_qty,
         RESULT_RU[r.result] || r.result, r.note || ''];
     });
-    var order = { 'не найдено': 0, 'расхождение по количеству': 1, 'найдено не по списку': 2 };
+    var order = { 'не найдено': 0, 'расхождение по количеству': 1, 'найдено не по списку': 2, 'не проверено': 3 };
     data.sort(function (a, b) { return (order[a[5]] === undefined ? 5 : order[a[5]]) - (order[b[5]] === undefined ? 5 : order[b[5]]); });
 
     var meta = {
@@ -2757,14 +3499,103 @@ var DB = (function () {
     toast('Отчёт выгружен', 'ok');
   }
 
+  // ---------- резервная копия ----------
+  $('btnBackup').onclick = async function () {
+    try {
+      var dump = await DB.dumpAll();
+      var name = 'inventory_backup_' + stamp() + '.json';
+      Exporter.download(name, JSON.stringify(dump), 'application/json');
+      localStorage.setItem('lastBackup', DB.nowIso());
+      renderStorageInfo();
+      toast('Копия сохранена: ' + dump.data.stock.length + ' позиций', 'ok');
+    } catch (e) { toast('Не удалось сохранить копию: ' + e.message, 'bad'); }
+  };
+
+  $('btnRestore').onclick = function () { $('restoreFile').click(); };
+
+  $('restoreFile').onchange = function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var dump;
+      try { dump = JSON.parse(reader.result); }
+      catch (e) { return toast('Файл не читается как JSON', 'bad'); }
+      if (!dump || dump.format !== 'lab-inventory') return toast('Это не резервная копия инвентаря', 'bad');
+      var d = dump.data || {};
+      openSheet('<div class="sheetTitle">Восстановление</div>' +
+        '<div class="sm dim" style="margin-bottom:12px">копия от ' +
+        esc((dump.exported_at || '').replace('T', ' ').slice(0, 16)) + '</div>' +
+        '<div class="card" style="padding:0">' +
+        [['позиций', (d.stock || []).length], ['номенклатуры', (d.items || []).length],
+         ['мест', (d.locations || []).length], ['движений', (d.movements || []).length],
+         ['сессий сверки', (d.audit_sessions || []).length]].map(function (r) {
+          return '<div class="row" style="padding:9px 12px;border-bottom:1px solid var(--line)">' +
+            '<div class="sm dim grow">' + r[0] + '</div><div class="sm">' + r[1] + '</div></div>';
+        }).join('') + '</div>' +
+        '<div class="sm" style="margin-bottom:12px">Сейчас в базе ' + S.stock.length + ' позиций.</div>' +
+        '<button class="btn primary big" id="rsMerge">Добавить к текущему</button>' +
+        '<div class="xs dim" style="margin:6px 0 12px">Записи с теми же кодами перезапишутся, остальное останется.</div>' +
+        '<button class="btn bad big" id="rsReplace">Заменить всё</button>' +
+        '<div class="xs dim" style="margin-top:6px">Текущая база будет стёрта целиком.</div>');
+
+      $('rsMerge').onclick = function () { doRestore(dump, 'merge'); };
+      $('rsReplace').onclick = function () {
+        if (!confirm('Стереть текущую базу и записать копию?')) return;
+        doRestore(dump, 'replace');
+      };
+    };
+    reader.onerror = function () { toast('Файл не прочитался', 'bad'); };
+    reader.readAsText(file);
+  };
+
+  async function doRestore(dump, mode) {
+    try {
+      toast('Восстанавливаю…');
+      var stats = await DB.restoreAll(dump, mode);
+      S.session = null; S.sessionRows = []; S.census = null;
+      printQueue.length = 0;
+      $('auditRun').style.display = 'none';
+      $('censusRun').style.display = 'none';
+      $('auditIdle').style.display = 'block';
+      await DB.backfillLocationCodes();
+      await reload();
+      await resumeOpenSession();
+      closeSheet();
+      toast('Восстановлено: ' + stats.added + ' новых, ' + stats.replaced + ' перезаписано', 'ok');
+    } catch (e) {
+      toast('Не удалось восстановить: ' + e.message, 'bad');
+    }
+  }
+
+  async function renderStorageInfo() {
+    var el = $('storageInfo');
+    if (!el) return;
+    var info = await DB.storageInfo();
+    var last = localStorage.getItem('lastBackup');
+    var parts = [];
+    if (last) parts.push('последняя копия ' + last.replace('T', ' ').slice(0, 16));
+    if (info) {
+      parts.push('занято ' + Math.round((info.usage || 0) / 1024) + ' КБ');
+      parts.push(info.persisted === true
+        ? 'хранилище защищено от автоочистки'
+        : 'хранилище не защищено от автоочистки — делай копии');
+    }
+    el.textContent = parts.join(' · ');
+  }
+
   // ---------- демо и очистка ----------
   $('btnWipe').onclick = async function () {
     if (!confirm('Стереть ВСЕ данные инвентаря на этом телефоне? Отменить нельзя.')) return;
     if (!confirm('Точно? Выгрузи XLSX перед этим, если данные нужны.')) return;
     await DB.wipe();
     await DB.seedIfEmpty();
-    S.session = null; S.sessionRows = [];
+    await DB.backfillLocationCodes();
+    S.session = null; S.sessionRows = []; S.census = null;
+    printQueue.length = 0;
     $('auditRun').style.display = 'none';
+    $('censusRun').style.display = 'none';
     $('auditIdle').style.display = 'block';
     await reload();
     toast('Всё стёрто');
@@ -2824,8 +3655,11 @@ var DB = (function () {
   (async function init() {
     try {
       await DB.open();
+      await DB.requestPersistence();
       await DB.seedIfEmpty();
+      await DB.backfillLocationCodes();
       await reload();
+      renderStorageInfo();
       updatePrinterBtn();
       await resumeOpenSession();
       if (!('BarcodeDetector' in window)) {
@@ -2838,6 +3672,7 @@ var DB = (function () {
   })();
 
   window.__app = { S: S, reload: reload, DB: DB };
+  window.__scanHit = handleHit;   // для автотестов: эмуляция попадания кода
 })();
 
 // --- регистрация service worker: без него офлайн в лаборатории не выживет ---
