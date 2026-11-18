@@ -251,8 +251,17 @@ summary{cursor:pointer}
         <button class="btn sm" id="btnRuler">Линейка 30 мм</button>
       </div>
     </div>
+    <h2>Версия</h2>
+    <div class="card">
+      <div class="row" style="padding:2px 0"><div class="sm dim grow">Приложение</div><div class="sm mono" id="verApp"></div></div>
+      <div class="row" style="padding:2px 0"><div class="sm dim grow">Собрано</div><div class="sm mono" id="verBuilt"></div></div>
+      <div class="row" style="padding:2px 0"><div class="sm dim grow">Схема базы</div><div class="sm mono" id="verDb"></div></div>
+      <div class="row" style="padding:2px 0"><div class="sm dim grow">Кэш офлайн</div><div class="sm mono" id="verCache">—</div></div>
+      <div class="row" style="padding:2px 0"><div class="sm dim grow">Библиотека печати</div><div class="sm mono" id="verLib">—</div></div>
+      <button class="btn sm" id="btnUpdate" style="margin-top:10px">Проверить обновление</button>
+    </div>
     <div class="xs dim" style="text-align:center;margin-top:16px">
-      офлайн · данные только на этом телефоне · ED
+      офлайн · данные только на этом телефоне
     </div>
   </section>
 </main>
@@ -1446,6 +1455,40 @@ var DB = (function () {
     return reqp(tx([store]).objectStore(store).index(index).getAll(value));
   }
 
+  // Выдача кода и запись должны идти неразрывно: иначе два быстрых
+  // сохранения успевают прочитать одинаковый максимум и сталкиваются
+  // на уникальном индексе stock.code, причём вторая запись пропадает молча.
+  var chain = Promise.resolve();
+  function serialize(fn) {
+    var next = chain.then(fn, fn);
+    chain = next.catch(function () {});
+    return next;
+  }
+
+  async function insertStock(st, type) {
+    return serialize(async function () {
+      for (var attempt = 0; attempt < 3; attempt++) {
+        if (!st.code) st.code = await newCode(type);
+        try {
+          await put('stock', st);
+          return st;
+        } catch (e) {
+          if (e && e.name === 'ConstraintError' && attempt < 2) { st.code = null; continue; }
+          throw e;
+        }
+      }
+      throw new Error('Не удалось выдать свободный код');
+    });
+  }
+
+  async function insertLocation(loc) {
+    return serialize(async function () {
+      if (!loc.code) loc.code = await newLocationCode();
+      await put('locations', loc);
+      return loc;
+    });
+  }
+
   function uid() {
     if (crypto.randomUUID) return crypto.randomUUID();
     return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -1633,13 +1676,14 @@ var DB = (function () {
   return {
     open: open, put: put, get: get, del: del, all: all, byIndex: byIndex,
     uid: uid, nowIso: nowIso, newCode: newCode, prefixFor: prefixFor,
+    insertStock: insertStock, insertLocation: insertLocation,
     newLocationCode: newLocationCode, backfillLocationCodes: backfillLocationCodes,
     buildPaths: buildPaths, descendants: descendants, logMove: logMove,
     seedIfEmpty: seedIfEmpty, wipe: wipe, counts: counts,
     dumpAll: dumpAll, restoreAll: restoreAll,
     requestPersistence: requestPersistence, storageInfo: storageInfo,
     TYPES: TYPES, LOC_KINDS: LOC_KINDS, STATUSES: STATUSES, MOVE_TYPES: MOVE_TYPES,
-    STORES: STORES
+    STORES: STORES, VERSION: VERSION
   };
 })();
 /* ---------- App ---------- */
@@ -1681,7 +1725,12 @@ var DB = (function () {
     $('sheetBody').innerHTML = html;
     $('sheet').classList.add('open');
   }
-  function closeSheet() { $('sheet').classList.remove('open'); }
+  function closeSheet() {
+    $('sheet').classList.remove('open');
+    // код, снятый сканером, живёт только до закрытия формы: иначе он
+    // утечёт в следующую позицию, которую заведут совсем по другому поводу
+    pendingCode = null;
+  }
   $('sheet').addEventListener('click', function (e) { if (e.target === $('sheet')) closeSheet(); });
 
   // ---------- загрузка состояния ----------
@@ -2182,8 +2231,19 @@ var DB = (function () {
         type = this.value;
         $('fFields').innerHTML = fieldsHtml(type, st, it, 'f_');
       };
-      $('fSave').onclick = function () { save(isNew); };
-      if ($('fSaveOnly')) $('fSaveOnly').onclick = function () { save(false); };
+      $('fSave').onclick = function () { guard($('fSave'), isNew); };
+      if ($('fSaveOnly')) $('fSaveOnly').onclick = function () { guard($('fSaveOnly'), false); };
+    }
+
+    // Повторное нажатие до завершения записи раньше приводило к потере позиции.
+    var saving = false;
+    async function guard(btn, andPrint) {
+      if (saving) return;
+      saving = true;
+      btn.disabled = true;
+      try { await save(andPrint); }
+      catch (e) { toast('Не сохранилось: ' + (e && e.message ? e.message : e), 'bad'); }
+      finally { saving = false; if (btn) btn.disabled = false; }
     }
 
     async function save(andPrint) {
@@ -2203,10 +2263,7 @@ var DB = (function () {
 
       var fresh = !st.id;
       st.id = st.id || DB.uid();
-      if (!st.code) {
-        st.code = pendingCode || await DB.newCode(type);
-        pendingCode = null;
-      }
+      if (!st.code && pendingCode) { st.code = pendingCode; pendingCode = null; }
       readFields(type, st, item, 'f_');
       await DB.put('items', item);
 
@@ -2217,7 +2274,8 @@ var DB = (function () {
       st.notes = $('fNotes').value.trim();
       st.received_at = st.received_at || DB.nowIso();
       st.unit = st.unit || '';
-      await DB.put('stock', st);
+      st.extra = st.extra || {};
+      await DB.insertStock(st, type);
       await DB.logMove({
         stock_id: st.id, type: fresh ? 'receipt' : 'adjust',
         qty_delta: fresh ? (parseFloat(st.qty) || 0) : 0,
@@ -2271,12 +2329,11 @@ var DB = (function () {
         return toast('Нельзя вложить место в само себя', 'bad');
       }
       loc.id = loc.id || DB.uid();
-      if (!loc.code) loc.code = await DB.newLocationCode();
       loc.name = name;
       loc.kind = $('lKind').value;
       loc.temp_c = $('lTemp').value === '' ? null : parseFloat($('lTemp').value);
       loc.parent_id = parent;
-      await DB.put('locations', loc);
+      await DB.insertLocation(loc);
       closeSheet(); await reload(); toast('Сохранено', 'ok');
     };
     if ($('lDel')) $('lDel').onclick = async function () {
@@ -2851,8 +2908,8 @@ var DB = (function () {
       $('cFields').innerHTML = fieldsHtml(this.value, pseudo, pseudoItem, 'c_');
     };
     $('cLoc').onclick = function () { S.census = null; renderCensusRun(); goto('s-audit'); };
-    $('cAdd').onclick = function () { censusAdd(false); };
-    $('cAgain').onclick = function () { censusAdd(true); };
+    $('cAdd').onclick = function () { censusGuard(false); };
+    $('cAgain').onclick = function () { censusGuard(true); };
     $('cUndo').onclick = censusUndo;
     $('cDone').onclick = function () {
       var n = S.census.entered.length;
@@ -2875,6 +2932,20 @@ var DB = (function () {
     updateCensusBadge();
   }
 
+  async function censusGuard(repeatLast) {
+    if (censusBusy) return;
+    censusBusy = true;
+    var btn = $(repeatLast ? 'cAgain' : 'cAdd');
+    if (btn) btn.disabled = true;
+    try { await censusAdd(repeatLast); }
+    catch (e) { toast('Не сохранилось: ' + (e && e.message ? e.message : e), 'bad'); }
+    finally {
+      censusBusy = false;
+      var b2 = $(repeatLast ? 'cAgain' : 'cAdd');
+      if (b2) b2.disabled = false;
+    }
+  }
+
   function censusDraftFromForm() {
     var c = S.census;
     var st = { extra: {} }, item = {};
@@ -2887,6 +2958,7 @@ var DB = (function () {
     };
   }
 
+  var censusBusy = false;   // защёлкой владеет censusGuard, здесь её не проверяем
   async function censusAdd(repeatLast) {
     var c = S.census;
     if (!c) return;
@@ -2908,13 +2980,13 @@ var DB = (function () {
     await DB.put('items', item);
 
     var st = {
-      id: DB.uid(), code: await DB.newCode(c.type), item_id: item.id,
+      id: DB.uid(), code: null, item_id: item.id,
       location_id: c.loc_id, lot: d.lot || '', qty: d.qty === undefined ? '' : d.qty,
       unit: d.unit || '', expiry: d.expiry || '', received_at: DB.nowIso(), opened_at: '',
       owner: INI(), status: 'in_stock', project: d.project || '', notes: '',
       extra: JSON.parse(JSON.stringify(d.extra || {})), label_printed: false
     };
-    await DB.put('stock', st);
+    await DB.insertStock(st, c.type);
     await DB.logMove({
       stock_id: st.id, type: 'receipt', qty_delta: parseFloat(st.qty) || 0,
       loc_to: c.loc_id, note: 'перепись', operator: INI()
@@ -3499,6 +3571,33 @@ var DB = (function () {
     toast('Отчёт выгружен', 'ok');
   }
 
+  // ---------- версия ----------
+  var BUILD = { app: 'v9', built: '2026-11-19 00:09' };
+
+  function renderVersion() {
+    $('verApp').textContent = BUILD.app;
+    $('verBuilt').textContent = BUILD.built;
+    $('verDb').textContent = 'v' + (DB.VERSION || '?');
+    $('verLib').textContent = window.niimbluelib ? 'загружена' : 'нет';
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      caches.keys().then(function (keys) {
+        $('verCache').textContent = keys.filter(function (k) { return /lab-inv/.test(k); }).join(', ') || 'нет';
+      }).catch(function () { $('verCache').textContent = 'нет доступа'; });
+    } else {
+      $('verCache').textContent = 'без service worker';
+    }
+  }
+
+  $('btnUpdate').onclick = async function () {
+    if (!('serviceWorker' in navigator)) return toast('Service worker недоступен', 'bad');
+    try {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      if (!regs.length) return toast('Приложение открыто без кэша', 'bad');
+      for (var i = 0; i < regs.length; i++) await regs[i].update();
+      toast('Проверено. Если версия новая — перезапусти приложение', 'ok');
+    } catch (e) { toast('Не вышло: ' + e.message, 'bad'); }
+  };
+
   // ---------- резервная копия ----------
   $('btnBackup').onclick = async function () {
     try {
@@ -3660,6 +3759,7 @@ var DB = (function () {
       await DB.backfillLocationCodes();
       await reload();
       renderStorageInfo();
+      renderVersion();
       updatePrinterBtn();
       await resumeOpenSession();
       if (!('BarcodeDetector' in window)) {
@@ -3670,6 +3770,11 @@ var DB = (function () {
         'Не удалось открыть базу: ' + esc(e.message) + '<br><br>Проверь, что страница открыта не в приватном окне.</div>';
     }
   })();
+
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    toast('Сбой: ' + ((r && r.message) || r || 'неизвестно'), 'bad');
+  });
 
   window.__app = { S: S, reload: reload, DB: DB };
   window.__scanHit = handleHit;   // для автотестов: эмуляция попадания кода
