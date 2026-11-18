@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#11161c">
+<meta name="theme-color" content="#faf9f7">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Инвентарь лаборатории</title>
 <style>
 :root{
-  --bg:#11161c; --surface:#19202a; --surface2:#222b37; --line:#2e3a49;
-  --text:#e8edf3; --dim:#94a3b5; --accent:#4da3ff; --ok:#3ecf8e;
-  --warn:#f0b429; --bad:#f06060; --radius:12px;
+  --bg:#faf9f7; --surface:#ffffff; --surface2:#f1efeb; --line:#e0ddd7;
+  --text:#1a1815; --dim:#6e6a63; --accent:#c0703c; --accent-weak:#f6e9de;
+  --radius:12px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
@@ -32,14 +32,11 @@ header h1{font-size:15px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
   font:600 12px/1 inherit;padding:8px 10px;border-radius:999px;
   border:1px solid var(--line);background:var(--surface2);color:var(--dim);
 }
-#printerBtn.on{color:var(--ok);border-color:#2b6b50;background:#15291f}
+#printerBtn.on{color:#fff;border-color:var(--accent);background:var(--accent)}
 main{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 .screen{display:none;padding:12px 12px 24px}
 .screen.active{display:block}
-nav{
-  flex:0 0 auto;display:flex;background:var(--surface);
-  border-top:1px solid var(--line);
-}
+nav{flex:0 0 auto;display:flex;background:var(--surface);border-top:1px solid var(--line)}
 nav button{
   flex:1;background:none;border:0;color:var(--dim);
   padding:9px 2px calc(9px + env(safe-area-inset-bottom));
@@ -55,22 +52,22 @@ h2:first-child{margin-top:2px}
 .row{display:flex;gap:8px;align-items:center}
 .row.wrap{flex-wrap:wrap}
 .grow{flex:1;min-width:0}
-.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3px}
 .dim{color:var(--dim)}
 .sm{font-size:12.5px}
 .xs{font-size:11.5px}
 .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.warnText{color:var(--accent)}
 
 button,input,select,textarea{font-family:inherit;font-size:15px}
 .btn{
-  background:var(--surface2);color:var(--text);border:1px solid var(--line);
+  background:var(--surface);color:var(--text);border:1px solid var(--line);
   border-radius:10px;padding:11px 14px;font-weight:600;cursor:pointer;
 }
 .btn:active{transform:translateY(1px)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#06121f}
-.btn.ok{background:var(--ok);border-color:var(--ok);color:#062014}
-.btn.bad{background:#3a1f22;border-color:#5d2b30;color:#ffb4b4}
-.btn.ghost{background:none}
+.btn.primary,.btn.ok{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.bad{background:var(--text);border-color:var(--text);color:#fff}
+.btn.ghost{background:none;border-color:transparent;color:var(--dim)}
 .btn.big{width:100%;padding:16px;font-size:16px}
 .btn.sm{padding:7px 10px;font-size:13px;border-radius:8px}
 .btn:disabled{opacity:.45}
@@ -78,7 +75,7 @@ button,input,select,textarea{font-family:inherit;font-size:15px}
 label.f{display:block;margin-bottom:10px}
 label.f>span{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:600}
 input,select,textarea{
-  width:100%;background:var(--bg);color:var(--text);
+  width:100%;background:var(--surface);color:var(--text);
   border:1px solid var(--line);border-radius:9px;padding:11px;
 }
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
@@ -87,23 +84,18 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
 .pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:650;border:1px solid var(--line);background:var(--surface2);color:var(--dim)}
-.pill.in_stock{color:var(--ok);border-color:#2b6b50;background:#15291f}
-.pill.open{color:var(--accent);border-color:#2a5680;background:#14202e}
-.pill.low,.pill.expired{color:var(--warn);border-color:#6b5420;background:#2a2316}
-.pill.empty,.pill.discarded,.pill.missing{color:var(--bad);border-color:#6b3030;background:#2a1818}
+.pill.in_stock,.pill.open{color:var(--text);background:var(--surface2)}
+.pill.low,.pill.expired,.pill.empty,.pill.discarded,.pill.missing{color:var(--accent);border-color:var(--accent);background:var(--accent-weak)}
 
 .item{display:flex;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);cursor:pointer}
 .item:last-child{border-bottom:0}
 .item:active{background:var(--surface2)}
 .list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
 .item .chk{width:22px;height:22px;flex:0 0 auto;border-radius:6px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px}
-.item .chk.found{background:var(--ok);border-color:var(--ok);color:#062014}
-.item .chk.miss{background:#3a1f22;border-color:#5d2b30;color:#ffb4b4}
+.item .chk.found{background:var(--accent);border-color:var(--accent);color:#fff}
+.item .chk.miss{background:var(--surface2);border-color:var(--text);color:var(--text)}
 
-.sheet{
-  position:fixed;inset:0;background:rgba(5,8,12,.72);
-  display:none;align-items:flex-end;z-index:50;
-}
+.sheet{position:fixed;inset:0;background:rgba(26,24,21,.38);display:none;align-items:flex-end;z-index:50}
 .sheet.open{display:flex}
 .sheet>.inner{
   background:var(--surface);width:100%;max-height:92vh;overflow-y:auto;
@@ -116,22 +108,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #camWrap{position:fixed;inset:0;background:#000;display:none;z-index:60;flex-direction:column}
 #camWrap.open{display:flex}
 #cam{flex:1;width:100%;object-fit:cover}
-#camBar{padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:#0a0e13;display:flex;gap:8px;align-items:center}
+#camBar{padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:#111;display:flex;gap:8px;align-items:center}
+#camBar .btn{background:#222;border-color:#444;color:#fff}
+#camBar .btn.on{background:var(--accent);border-color:var(--accent)}
 #camHint{position:absolute;top:calc(env(safe-area-inset-top) + 14px);left:0;right:0;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none}
-#reticle{position:absolute;top:50%;left:50%;width:62vw;height:62vw;max-width:300px;max-height:300px;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+#reticle{position:absolute;top:50%;left:50%;width:64vw;height:64vw;max-width:320px;max-height:320px;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.8);border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);pointer-events:none}
+#camStatus{color:#bbb}
 
 #toast{
   position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));
   transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
-  background:#0a0e13;border:1px solid var(--line);color:var(--text);
+  background:var(--text);border:1px solid var(--text);color:#fff;
   padding:11px 16px;border-radius:999px;font-size:13.5px;font-weight:600;
   transition:.22s;z-index:80;max-width:88vw;text-align:center;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-#toast.bad{border-color:#6b3030;color:#ffb4b4}
-#toast.ok{border-color:#2b6b50;color:#a6f0cd}
+#toast.bad{background:var(--accent);border-color:var(--accent)}
+#toast.ok{background:var(--text)}
 
-.preview{background:#fff;border-radius:8px;padding:8px;overflow-x:auto;margin-bottom:10px}
+.preview{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;overflow-x:auto;margin-bottom:10px}
 .preview canvas{display:block;image-rendering:pixelated;height:auto;max-width:100%}
 .stat{display:flex;gap:10px;margin-bottom:10px}
 .stat>div{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
@@ -141,11 +136,11 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .tree .node{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--line)}
 .tree .node:last-child{border-bottom:0}
 .empty{text-align:center;color:var(--dim);padding:28px 10px;font-size:13.5px}
-.log{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim);white-space:pre-wrap;max-height:130px;overflow-y:auto}
 hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 datalist{display:none}
 .bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin:8px 0}
-.bar>div{height:100%;background:var(--ok);width:0;transition:width .2s}
+.bar>div{height:100%;background:var(--accent);width:0;transition:width .2s}
+summary{cursor:pointer}
 </style>
 </head>
 <body>
@@ -217,8 +212,10 @@ datalist{display:none}
       <div class="xs dim" style="margin:8px 0 14px">20 позиций, чтобы пощупать интерфейс до реальной инвентаризации.</div>
       <button class="btn bad big" id="btnWipe">Стереть всё</button>
     </div>
-    <h2>Принтер</h2>
+    <h2>Принтер и этикетки</h2>
     <div class="card">
+      <label class="f"><span>Шаблон по умолчанию</span><select id="cfgTpl"></select></label>
+      <div class="xs dim" id="cfgTplHint" style="margin:-6px 0 12px"></div>
       <div class="grid3">
         <label class="f"><span>Плотность</span><input type="number" id="cfgDensity" min="1" max="5" inputmode="numeric"></label>
         <label class="f"><span>Пауза, мс</span><input type="number" id="cfgPause" min="0" max="80" inputmode="numeric"></label>
@@ -228,11 +225,6 @@ datalist{display:none}
         <button class="btn sm" id="btnTestPrint">Тестовая этикетка</button>
         <button class="btn sm" id="btnRuler">Линейка 30 мм</button>
       </div>
-      <details id="logBox" style="margin-top:10px">
-        <summary class="sm dim">Журнал пакетов</summary>
-        <div class="xs dim" style="margin:6px 0">Открытый журнал замедляет печать — закрой его перед работой.</div>
-        <div class="log" id="printLog"></div>
-      </details>
     </div>
     <div class="xs dim" style="text-align:center;margin-top:16px">
       офлайн · данные только на этом телефоне · ED
@@ -253,9 +245,10 @@ datalist{display:none}
 <div id="camWrap">
   <video id="cam" playsinline muted></video>
   <div id="reticle"></div>
-  <div id="camHint">наведи на Data Matrix</div>
+  <div id="camHint">код в рамку, вплотную не надо</div>
   <div id="camBar">
-    <div class="grow sm dim" id="camStatus">поиск кода…</div>
+    <div class="grow sm" id="camStatus">поиск кода…</div>
+    <button class="btn" id="camTorch">Свет</button>
     <button class="btn" id="camClose">Закрыть</button>
   </div>
 </div>
@@ -504,8 +497,8 @@ crc-32/crc32.js:
 // Последовательность повторяет проверенную страницу lims-print-test:
 // connect → fetchRfidInfo → newPrintTask → printInit → printPage →
 // waitForPageFinished → waitForFinished → printEnd.
-// Журнал пакетов копится в памяти и отдаётся только по запросу:
-// запись в DOM на каждый пакет заметно тормозит печать на телефоне.
+// Подписки на packetsent/packetreceived здесь сознательно нет: обработчик
+// на каждый пакет заметно тормозит отправку на телефоне.
 // ===================================================================
 var Printer = (function () {
   'use strict';
@@ -519,18 +512,12 @@ var Printer = (function () {
   };
 
   var client = null, busy = false;
-  var logBuf = [], logSink = null, wantLog = false;
+  var lastError = '';
   var onProgress = null, onState = null;
 
   function L() { return window.niimbluelib; }
-  function log(s) {
-    logBuf.push(new Date().toTimeString().slice(0, 8) + '  ' + s);
-    if (logBuf.length > 1500) logBuf.shift();
-    if (logSink) logSink(s);
-  }
-  function getLog() { return logBuf.join('\n'); }
-  function setLogVisible(v) { wantLog = !!v; }
-  function setLogger(fn) { logSink = fn; }
+  function log(s) { lastError = s; }
+  function getLastError() { return lastError; }
   function setProgressHandler(fn) { onProgress = fn; }
   function setStateHandler(fn) { onState = fn; }
   function state(kind, msg) { if (onState) onState(kind, msg); }
@@ -554,12 +541,6 @@ var Printer = (function () {
     busy = true;
     try {
       client = L().instantiateClient('bluetooth');
-      client.on('packetsent', function (e) {
-        if (wantLog) log('>> ' + L().Utils.bufToHex(e.packet.toBytes()) + ' ' + (L().RequestCommandId[e.packet.command] || ''));
-      });
-      client.on('packetreceived', function (e) {
-        if (wantLog) log('<< ' + L().Utils.bufToHex(e.packet.toBytes()) + ' ' + (L().ResponseCommandId[e.packet.command] || ''));
-      });
       client.on('disconnect', function () {
         state('warn', 'Принтер отключился');
         log('Принтер отключился');
@@ -666,9 +647,7 @@ var Printer = (function () {
     isBusy: isBusy,
     info: info,
     printCanvas: printCanvas,
-    getLog: getLog,
-    setLogVisible: setLogVisible,
-    setLogger: setLogger,
+    getLastError: getLastError,
     setProgressHandler: setProgressHandler,
     setStateHandler: setStateHandler
   };
@@ -676,21 +655,24 @@ var Printer = (function () {
 /* ---------- Labels ---------- */
 // ===================================================================
 // Макеты этикеток Niimbot D11_H.
-// Геометрия, отступы и кегли взяты из проверенной страницы lims-print-test
-// и дока "Печать этикеток Niimbot D11_H — параметры" (калибровка линейкой
-// и вырубкой подтверждена, печать проверена 11.11.2026).
-//   300 dpi, 1 мм = 11,81 px, головка 142 точки.
-//   Кегль задаётся высотой заглавной буквы в мм, минимум 1,4 мм.
-//   Data Matrix 5 мм, модуль — целое число точек.
+// Базис — проверенная страница lims-print-test и док с параметрами:
+//   300 dpi, 1 мм = 11,81 px, головка 142 точки,
+//   кегль задаётся высотой заглавной буквы в мм (минимум 1,4),
+//   модуль Data Matrix — целое число точек, порог черноты 140.
+// Отличия от дока, сделанные осознанно:
+//   1) главное на этикетке — название, а не номер; номер ушёл в нижнюю
+//      строку рядом с инициалами;
+//   2) Data Matrix увеличен с 5 до 6–7 мм, а код потерял дефис и стал
+//      символом 10×10 вместо 12×12 — вместе это поднимает модуль
+//      с 0,42 до 0,68 мм, ради скана слабой камерой.
 // ===================================================================
 var Labels = (function () {
   'use strict';
 
   var DPI = 300, MM = DPI / 25.4;
-  var HEAD = 142;                       // точек в печатающей головке D11_H
+  var HEAD = 142;
   var FONT = 'Arial,"Liberation Sans",Roboto,"DejaVu Sans",sans-serif';
-  var DM_MM = 5;                        // сторона Data Matrix
-  var MIN_CAP = 1.4;                    // минимальная высота заглавной, мм
+  var MIN_CAP = 1.4;
 
   var mm = function (v) { return v * MM; };
   var r = function (v) { return Math.round(v * MM); };
@@ -715,7 +697,6 @@ var Labels = (function () {
     return (bold ? 'bold ' : '') + (mm(capMm) * 100 / capCache[k]).toFixed(2) + 'px ' + FONT;
   }
 
-  // top — верх заглавной буквы. Длинную строку сжимает, но не сильнее 80 %.
   function text(str, x, top, capMm, bold, maxW, warns, align) {
     if (!str) return 0;
     ctx.font = fontCss(capMm, bold);
@@ -740,15 +721,15 @@ var Labels = (function () {
   }
 
   // ---------- Data Matrix ----------
-  function dmInfo(code) {
+  function dmInfo(code, sizeMm) {
     var sym = DataMatrixEncoder.encode(code || ' ');
-    var px = Math.max(1, Math.round(mm(DM_MM) / sym.size));
-    return { sym: sym, px: px, size: sym.size * px };
+    var px = Math.max(1, Math.round(mm(sizeMm || 7) / sym.size));
+    return { sym: sym, px: px, size: sym.size * px, modules: sym.size, moduleMm: px / MM };
   }
   function drawDM(d, x, y) {
     ctx.fillStyle = '#000';
-    for (var j = 0; j < d.sym.size; j++) {
-      for (var i = 0; i < d.sym.size; i++) {
+    for (var j = 0; j < d.modules; j++) {
+      for (var i = 0; i < d.modules; i++) {
         if (d.sym.matrix[j][i]) ctx.fillRect(Math.round(x) + i * d.px, Math.round(y) + j * d.px, d.px, d.px);
       }
     }
@@ -756,95 +737,132 @@ var Labels = (function () {
 
   var chord = function (R, dy) { return 2 * Math.sqrt(Math.max(0, R * R - dy * dy)); };
 
-  // ---------- блоки ----------
-  // Прямоугольный блок: код слева, номер и три строки справа.
-  function block(x0, x1, o, warns) {
-    var H = cv.height, m = mm(1), caps = [o.idCap, 1.5, 1.5, 1.5];
+  // Строки распределяются по высоте ленты равными промежутками.
+  function rowTops(caps) {
     var sum = 0, i;
     for (i = 0; i < caps.length; i++) sum += mm(caps[i]);
-    var gap = (H - sum) / 5;
+    var gap = (cv.height - sum) / (caps.length + 1);
     var tops = [], y = gap;
     for (i = 0; i < caps.length; i++) { tops.push(y); y += mm(caps[i]) + gap; }
-
-    var d = dmInfo(o.code);
-    var x = x0 + m + d.size + mm(1.5), right = x1 - mm(1);
-    var wIni = o.ini ? textW(o.ini, 1.5, true) : 0;
-    var lastMax = right - x;
-
-    if (o.edPos === 'corner') {
-      drawDM(d, x0 + m, (H - d.size) / 2);
-      if (o.ini) {
-        var ex = x1 - mm(1.2) - wIni;
-        text(o.ini, ex, tops[3], 1.5, true, 0, warns);
-        lastMax = ex - mm(1) - x;
-      }
-    } else {
-      drawDM(d, x0 + m, gap + (tops[3] - gap - mm(0.8) - d.size) / 2);
-      if (o.ini) text(o.ini, x0 + m + d.size / 2, tops[3], 1.5, true, d.size + mm(1), warns, 'center');
-    }
-    text(o.code, x, tops[0], o.idCap, true, right - x, warns);
-    text(o.lines[0], x, tops[1], 1.5, false, right - x, warns);
-    text(o.lines[1], x, tops[2], 1.5, false, right - x, warns);
-    text(o.lines[2], x, tops[3], 1.5, false, lastMax, warns);
+    return tops;
   }
 
-  // Треть этикетки 12×40 (13,3×12 мм). По доку на 0,6 мл держится хуже половинки.
+  // Название — главное на этикетке, поэтому сначала подбираем кегль,
+  // и только если даже минимальный не влезает, переносим на две строки
+  // (ценой одной строки данных).
+  function fitTitleRows(str, maxW, capMax, capMin) {
+    str = String(str || '').trim();
+    if (!str) return { cap: capMax, rows: [''] };
+    for (var cap = capMax; cap >= capMin - 0.001; cap -= 0.1) {
+      if (textW(str, cap, true) <= maxW) return { cap: Math.round(cap * 10) / 10, rows: [str] };
+    }
+    var words = str.split(/\s+/), a = '', b = '';
+    for (var i = 0; i < words.length; i++) {
+      var probe = a ? a + ' ' + words[i] : words[i];
+      if (!b && (textW(probe, capMin, true) <= maxW || !a)) a = probe;
+      else b = b ? b + ' ' + words[i] : words[i];
+    }
+    return b ? { cap: capMin, rows: [a, b] } : { cap: capMin, rows: [a] };
+  }
+
+  // ---------- прямоугольный блок ----------
+  // Код слева, справа: название крупно, данные, внизу номер и инициалы.
+  function block(x0, x1, o, warns) {
+    var m = mm(1);
+    var d = dmInfo(o.code, o.dmMm);
+    var x = x0 + m + d.size + mm(1.2), right = x1 - mm(1);
+    var maxW = right - x;
+
+    var fit = fitTitleRows(o.title, maxW, o.titleCap, o.titleMin || 1.8);
+    var lines = fit.rows.length > 1 ? o.lines.slice(0, Math.max(0, o.lines.length - 1)) : o.lines;
+    // номер не должен спорить с названием за главенство
+    var codeCap = Math.max(MIN_CAP, Math.min(o.codeCap, fit.cap - 0.1));
+
+    var caps = fit.rows.map(function () { return fit.cap; })
+      .concat(lines.map(function () { return o.lineCap; }))
+      .concat([codeCap]);
+    var tops = rowTops(caps);
+    var last = tops.length - 1;
+
+    drawDM(d, x0 + m, (cv.height - d.size) / 2);
+
+    var k = 0;
+    for (; k < fit.rows.length; k++) text(fit.rows[k], x, tops[k], fit.cap, true, maxW, warns);
+    for (var i = 0; i < lines.length; i++) text(lines[i], x, tops[k + i], o.lineCap, false, maxW, warns);
+
+    var codeMax = maxW;
+    if (o.ini) {
+      var iniW = textW(o.ini, codeCap, true);
+      var ex = right - iniW;
+      text(o.ini, ex, tops[last], codeCap, true, 0, warns);
+      codeMax = ex - mm(1) - x;
+    }
+    text(o.code, x, tops[last], codeCap, true, codeMax, warns);
+  }
+
+  // ---------- треть 12×40 (по доку на 0,6 мл держится хуже половинки) ----------
   function thirdBlock(x0, x1, o, warns) {
-    var m = mm(0.8), d = dmInfo(o.code), top = mm(0.9);
+    var m = mm(0.8), d = dmInfo(o.code, 5), top = mm(0.9);
     drawDM(d, x0 + m, top);
     var xr = x0 + m + d.size + mm(0.7), wr = x1 - mm(0.6) - xr;
-    for (var k = 0; k < o.side.length; k++) text(o.side[k], xr, top + k * mm(1.75), 1.5, false, wr, warns);
-    var yId = top + d.size + mm(0.8), yLast = yId + mm(2.0) + mm(0.8);
-    var x = x0 + m, full = x1 - m - x, lastMax = full;
-    text(o.code, x, yId, 2.0, true, full, warns);
+    text(o.title, xr, top, 1.5, true, wr, warns);
+    if (o.lines[0]) text(o.lines[0], xr, top + mm(2.1), 1.4, false, wr, warns);
+    var yCode = top + d.size + mm(0.9), x = x0 + m, full = x1 - m - x, codeMax = full;
     if (o.ini) {
       var ex = x1 - m - textW(o.ini, 1.5, true);
-      text(o.ini, ex, yLast, 1.5, true, 0, warns);
-      lastMax = ex - mm(0.8) - x;
+      text(o.ini, ex, yCode, 1.5, true, 0, warns);
+      codeMax = ex - mm(0.8) - x;
     }
-    text(o.last, x, yLast, 1.5, false, lastMax, warns);
+    text(o.code, x, yCode, 1.8, true, codeMax, warns);
   }
 
-  // Флажок: 7,5 мм хвост · 25 мм оборот вокруг пробирки · 7,5 мм хвост.
+  // ---------- флажок ----------
   var FLAG = { tail: 7.5, wrap: 25, pad: 2.5 };
 
   function flagTail(x0, x1, code, warns) {
-    var d = dmInfo(code), cx = (x0 + x1) / 2, capId = 1.6;
-    var h = d.size + mm(0.8) + mm(capId), y0 = (cv.height - h) / 2;
+    var d = dmInfo(code, 6), cx = (x0 + x1) / 2, capId = 1.5;
+    var h = d.size + mm(0.7) + mm(capId), y0 = (cv.height - h) / 2;
     drawDM(d, cx - d.size / 2, y0);
-    text(code, cx, y0 + d.size + mm(0.8), capId, true, (x1 - x0) - mm(1.2), warns, 'center');
+    text(code, cx, y0 + d.size + mm(0.7), capId, true, (x1 - x0) - mm(1.2), warns, 'center');
   }
 
   function flagBody(x0, x1, o, warns) {
-    var H = cv.height, caps = [2.5, 1.5, 1.5, 1.5], sum = 0, i;
-    for (i = 0; i < caps.length; i++) sum += mm(caps[i]);
-    var gap = (H - sum) / 5, tops = [], y = gap;
-    for (i = 0; i < caps.length; i++) { tops.push(y); y += mm(caps[i]) + gap; }
     var x = x0 + mm(FLAG.pad), right = x1 - mm(FLAG.pad);
-    text(o.code, x, tops[0], 2.5, true, right - x, warns);
-    text(o.lines[0], x, tops[1], 1.5, false, right - x, warns);
-    text(o.lines[1], x, tops[2], 1.5, false, right - x, warns);
-    var lastMax = right - x;
+    var maxW = right - x;
+    var fit = fitTitleRows(o.title, maxW, 2.2, 1.7);
+    var lines = fit.rows.length > 1 ? o.lines.slice(0, 1) : o.lines;
+    var caps = fit.rows.map(function () { return fit.cap; })
+      .concat(lines.map(function () { return 1.5; })).concat([1.6]);
+    var tops = rowTops(caps);
+    var last = tops.length - 1;
+
+    var k = 0;
+    for (; k < fit.rows.length; k++) text(fit.rows[k], x, tops[k], fit.cap, true, maxW, warns);
+    for (var i = 0; i < lines.length; i++) text(lines[i], x, tops[k + i], 1.5, false, maxW, warns);
+
+    var codeMax = maxW;
     if (o.ini) {
-      var ex = right - textW(o.ini, 1.5, true);
-      text(o.ini, ex, tops[3], 1.5, true, 0, warns);
-      lastMax = ex - mm(1) - x;
+      var ex = right - textW(o.ini, 1.6, true);
+      text(o.ini, ex, tops[last], 1.6, true, 0, warns);
+      codeMax = ex - mm(1) - x;
     }
-    text(o.lines[2], x, tops[3], 1.5, false, lastMax, warns);
+    text(o.code, x, tops[last], 1.6, true, codeMax, warns);
   }
 
+  // ---------- круги ----------
   function circleCode(cx, cy, R, code, ini, warns) {
-    var d = dmInfo(code), h = d.size + mm(0.7) + mm(2.0), y0 = cy - h / 2;
+    var d = dmInfo(code, 6), h = d.size + mm(0.6) + mm(1.8), y0 = cy - h / 2;
     drawDM(d, cx - d.size / 2, y0);
-    var top = y0 + d.size + mm(0.7);
-    text(code, cx, top, 2.0, true, chord(R, top + mm(2.0) - cy) - mm(0.4), warns, 'center');
-    if (ini) text(ini, cx + d.size / 2 + mm(0.5), y0 + d.size / 2 - mm(0.75), 1.5, true, R - d.size / 2 - mm(0.7), warns);
+    var top = y0 + d.size + mm(0.6);
+    text(code, cx, top, 1.8, true, chord(R, top + mm(1.8) - cy) - mm(0.4), warns, 'center');
+    if (ini) text(ini, cx + d.size / 2 + mm(0.4), y0 + d.size / 2 - mm(0.7), 1.4, true, R - d.size / 2 - mm(0.6), warns);
   }
 
+  // Крупный номер: видно в коробке без сканера.
   function circleBig(cx, cy, R, code, sub, warns) {
-    var i = code.indexOf('-');
-    var pre = i >= 0 ? code.slice(0, i + 1) : '';
-    var num = i >= 0 ? code.slice(i + 1) : code;
+    var m = /^([A-Za-z]*)(\d+)$/.exec(code || '');
+    var pre = m ? m[1] : '';
+    var num = m ? m[2] : code;
     var caps = [1.7, 3.4, 1.4], g = mm(0.7), sum = 0, k;
     for (k = 0; k < caps.length; k++) sum += mm(caps[k]);
     var y = cy - (sum + 2 * g) / 2;
@@ -864,30 +882,30 @@ var Labels = (function () {
   // ---------- шаблоны ----------
   var TPL = {
     rect30: { title: '12×30 мм', mmW: 30, mmH: 12, hint: 'флаконы, пробирки 1,5–2 мл, коробки' },
-    half40: { title: '12×40 мм, две половинки', mmW: 40, mmH: 12, two: true, hint: 'рез на 20 мм; на каждой половине свой объект' },
+    half40: { title: '12×40 мм, две половинки', mmW: 40, mmH: 12, second: true, hint: 'рез на 20 мм; на каждой половине свой объект' },
     flag40: { title: '12×40 мм, флажок', mmW: 40, mmH: 12, hint: 'пробирки 0,6 мл: хвост 7,5 · оборот 25 · хвост 7,5' },
-    third40: { title: '12×40 мм, три части', mmW: 40, mmH: 12, three: true, hint: 'на 0,6 мл держится хуже половинки — по доку не использовать' },
-    round: { title: '28×14 мм, два круга', mmW: 28, mmH: 14, round: true, hint: 'крышки криопробирок; поправка принтера −0,5 мм учтена' },
+    third40: { title: '12×40 мм, три части', mmW: 40, mmH: 12, hint: 'по доку на 0,6 мл держится хуже половинки' },
+    round: { title: '28×14 мм, два круга', mmW: 28, mmH: 14, second: true, hint: 'крышки криопробирок; поправка принтера −0,5 мм учтена' },
     ruler: { title: 'Калибровка: линейка 30 мм', mmW: 30, mmH: 12, service: true, hint: 'печатать на новой партии этикеток или другом принтере' }
   };
 
-  // Шаблоны строк по типу объекта (из дока).
+  // Название вынесено в заголовок, данные — две строки по типу объекта.
   function linesFor(rec) {
-    var t = rec.type, L = [];
+    var t = rec.type, title = rec.name || rec.code || '', lines;
     if (t === 'sample' || t === 'cell_line') {
-      L = [join([rec.name, rec.clone]), join([rec.date, rec.passage]), join([rec.temp, rec.loc])];
+      lines = [join([rec.clone, rec.passage]), join([rec.date, rec.temp, rec.loc])];
     } else if (t === 'vector') {
-      L = [rec.name, rec.titer, join([rec.temp, rec.loc])];
+      lines = [rec.titer, join([rec.temp, rec.loc])];
     } else if (t === 'animal') {
-      L = [join([rec.name, rec.sex, rec.age]), rec.group, rec.cage];
+      lines = [join([rec.sex, rec.age, rec.group]), rec.cage];
     } else {
-      L = [join([rec.name, rec.conc]), rec.expiry, join([rec.temp, rec.loc])];
+      lines = [join([rec.conc, rec.clone]), join([rec.expiry ? 'до ' + rec.expiry : '', rec.temp, rec.loc])];
     }
-    return [L[0] || '', L[1] || '', L[2] || ''];
+    return { title: title, lines: [lines[0] || '', lines[1] || ''] };
   }
   function join(parts) {
     return parts.filter(function (p) { return p !== undefined && p !== null && String(p).trim() !== ''; })
-      .map(function (p) { return String(p).trim(); }).join(', ');
+      .map(function (p) { return String(p).trim(); }).join(' · ');
   }
 
   // ---------- отрисовка ----------
@@ -904,35 +922,47 @@ var Labels = (function () {
 
     var code = String(spec.code || '').trim();
     var ini = String(spec.ini === undefined ? 'ED' : spec.ini).trim();
-    var lines = spec.lines || ['', '', ''];
+    var title = String(spec.title || '').trim();
+    var lines = spec.lines || ['', ''];
+    var dm = null;
 
     if (id === 'rect30') {
-      block(0, cv.width, { code: code, lines: lines, ini: ini, idCap: 2.5, edPos: 'corner' }, warns);
+      block(0, cv.width, {
+        code: code, title: title, lines: [lines[0] || '', lines[1] || ''], ini: ini,
+        titleCap: 2.5, lineCap: 1.5, codeCap: 1.7, dmMm: 7
+      }, warns);
+      dm = dmInfo(code, 7);
     } else if (id === 'half40') {
       var half = cv.width / 2;
-      var c2 = spec.code2 || code;
-      var lines2 = spec.lines2 || lines;
-      block(0, half, { code: code, lines: lines, ini: ini, idCap: 2.2, edPos: 'under' }, warns);
-      block(half, cv.width, { code: c2, lines: lines2, ini: ini, idCap: 2.2, edPos: 'under' }, warns);
+      var o1 = { code: code, title: title, lines: [lines[0] || ''], ini: ini, titleCap: 2.0, lineCap: 1.4, codeCap: 1.5, dmMm: 6 };
+      var o2 = {
+        code: spec.code2 || code,
+        title: spec.title2 || title,
+        lines: [(spec.lines2 && spec.lines2[0]) || lines[0] || ''],
+        ini: ini, titleCap: 2.0, lineCap: 1.4, codeCap: 1.5, dmMm: 6
+      };
+      block(0, half, o1, warns);
+      block(half, cv.width, o2, warns);
       ctx.fillStyle = '#000';
       ctx.fillRect(Math.round(half) - 1, 0, 2, r(1.2));
       ctx.fillRect(Math.round(half) - 1, cv.height - r(1.2), 2, r(1.2));
+      dm = dmInfo(code, 6);
     } else if (id === 'flag40') {
       var a = mm(FLAG.tail), b = mm(FLAG.tail + FLAG.wrap);
       flagTail(0, a, code, warns);
-      flagBody(a, b, { code: code, lines: lines, ini: ini }, warns);
+      flagBody(a, b, { code: code, title: title, lines: [lines[0] || '', lines[1] || ''], ini: ini }, warns);
       flagTail(b, cv.width, code, warns);
       ctx.fillStyle = '#000';
       [a, b].forEach(function (xc) {
         ctx.fillRect(Math.round(xc) - 1, 0, 2, r(0.8));
         ctx.fillRect(Math.round(xc) - 1, cv.height - r(0.8), 2, r(0.8));
       });
+      dm = dmInfo(code, 6);
     } else if (id === 'third40') {
       var w3 = cv.width / 3;
-      var side = [lines[0], lines[1], spec.side3 || ''];
       var c = code;
       for (var k = 0; k < 3; k++) {
-        thirdBlock(k * w3, (k + 1) * w3, { code: c, side: side, last: lines[2], ini: ini }, warns);
+        thirdBlock(k * w3, (k + 1) * w3, { code: c, title: title, lines: [lines[0] || ''], ini: ini }, warns);
         if (spec.nextOnEach) c = nextCode(c);
       }
       ctx.fillStyle = '#000';
@@ -940,16 +970,17 @@ var Labels = (function () {
         ctx.fillRect(Math.round(xc) - 1, 0, 2, r(1.0));
         ctx.fillRect(Math.round(xc) - 1, cv.height - r(1.0), 2, r(1.0));
       });
+      dm = dmInfo(code, 5);
     } else if (id === 'round') {
-      // центры с поправкой принтера −0,5 мм (вырубка на 7,1 и 20,9 мм), круг 13 мм
       var cy = cv.height / 2, R = mm(6.5) - mm(0.4);
       if (spec.roundLayout === 'two') {
         circleCode(mm(6.6), cy, R, code, ini, warns);
         circleCode(mm(20.4), cy, R, spec.code2 || code, ini, warns);
       } else {
         circleCode(mm(6.6), cy, R, code, ini, warns);
-        circleBig(mm(20.4), cy, R, code, lines[2], warns);
+        circleBig(mm(20.4), cy, R, code, lines[1] || lines[0] || '', warns);
       }
+      dm = dmInfo(code, 6);
     } else {
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
@@ -973,7 +1004,11 @@ var Labels = (function () {
     }
     ctx.putImageData(im, 0, 0);
 
-    return { canvas: cv, warns: warns, mmW: t.mmW, mmH: t.mmH, dots: cv.width + '×' + cv.height };
+    return {
+      canvas: cv, warns: warns, mmW: t.mmW, mmH: t.mmH,
+      dots: cv.width + '×' + cv.height,
+      dm: dm ? { modules: dm.modules, moduleMm: dm.moduleMm, sizeMm: dm.size / MM } : null
+    };
   }
 
   return {
@@ -1329,10 +1364,11 @@ var DB = (function () {
 
   function nowIso() { return new Date().toISOString(); }
 
-  // --- генерация кода: префикс типа, дефис, четыре цифры: S-0001 ---
-  // Буква, дефис и две пары цифр укладываются в 4 кодовых слова Data Matrix,
-  // то есть символ 12×12 — ровно тот размер, под который считан макет
-  // (5 мм при модуле 5 точек). Нумерация сквозная по префиксу.
+  // --- генерация кода: префикс типа и четыре цифры: S0001 ---
+  // Без дефиса буква и две пары цифр укладываются в 3 кодовых слова,
+  // то есть символ Data Matrix 10×10 вместо 12×12. Вместе с увеличением
+  // символа до 7 мм это поднимает модуль с 0,42 до 0,68 мм — ради скана
+  // слабой камерой. Нумерация сквозная по префиксу.
   function prefixFor(type) {
     for (var i = 0; i < TYPES.length; i++) if (TYPES[i][0] === type) return TYPES[i][2];
     return 'R';
@@ -1342,7 +1378,7 @@ var DB = (function () {
     var prefix = prefixFor(type);
     var existing = await all('stock');
     var used = {}, maxNum = 0;
-    var re = new RegExp('^' + prefix + '-(\\d+)$');
+    var re = new RegExp('^' + prefix + '(\\d+)$');
     existing.forEach(function (s) {
       if (!s.code) return;
       used[s.code] = 1;
@@ -1350,7 +1386,7 @@ var DB = (function () {
       if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
     });
     for (var n = maxNum + 1; n < maxNum + 100000; n++) {
-      var code = prefix + '-' + String(n).padStart(4, '0');
+      var code = prefix + String(n).padStart(4, '0');
       if (!used[code]) return code;
     }
     throw new Error('Не удалось подобрать свободный код');
@@ -1515,8 +1551,8 @@ var DB = (function () {
     return { temp: t, loc: tail };
   }
 
-  // Строки 2–4 заполняются по шаблону типа объекта из дока.
-  function labelLines(st) {
+  // Заголовок и две строки данных по шаблону типа объекта.
+  function labelSpec(st) {
     var it = itemOf(st.item_id) || {};
     var sl = shortLoc(st);
     return Labels.linesFor({
@@ -1902,8 +1938,21 @@ var DB = (function () {
         loc_to: locId, note: fresh ? 'создано' : 'правка', operator: INI(),
         session_id: S.session ? S.session.id : null
       });
+      // Позиция, заведённая прямо в сессии, сразу считается найденной:
+      // пересканировать только что наклеенную этикетку незачем.
+      if (fresh && S.session) {
+        var row = {
+          id: DB.uid(), session_id: S.session.id, stock_id: st.id,
+          expected_qty: null, found_qty: st.qty === '' ? null : st.qty,
+          result: 'new_registered', note: 'заведено в сессии'
+        };
+        S.sessionRows.push(row);
+        await DB.put('audit_results', row);
+      }
+
       await reload();
-      toast(fresh ? 'Создано: ' + st.code : 'Сохранено', 'ok');
+      if (fresh && S.session) renderAuditRun();
+      toast(fresh ? 'Создано: ' + st.code + (S.session ? ' · отмечено в сессии' : '') : 'Сохранено', 'ok');
       if (andPrint) showPrintForm(st); else closeSheet();
       return st;
     }
@@ -2026,24 +2075,32 @@ var DB = (function () {
     } catch (err) { toast(err.message, 'bad'); return false; }
   }
 
+  function defaultTpl() {
+    var v = localStorage.getItem('tpl') || 'rect30';
+    return Labels.TPL[v] && !Labels.TPL[v].service ? v : 'rect30';
+  }
+
   function showPrintForm(st) {
-    var lines = labelLines(st);
+    var base = labelSpec(st);
     var ids = Object.keys(Labels.TPL).filter(function (k) { return !Labels.TPL[k].service; });
+    var start = defaultTpl();
 
     openSheet('<div class="sheetTitle">Печать этикетки</div>' +
-      '<div class="sm dim" style="margin-bottom:12px"><span class="mono">' + esc(st.code) + '</span> · ' + esc(displayName(st)) + '</div>' +
+      '<div class="sm dim" style="margin-bottom:12px">' + esc(displayName(st)) + ' · <span class="mono">' + esc(st.code) + '</span></div>' +
       '<label class="f"><span>Шаблон</span><select id="pTpl">' +
-      ids.map(function (k) { return '<option value="' + k + '">' + Labels.TPL[k].title + '</option>'; }).join('') +
+      ids.map(function (k) {
+        return '<option value="' + k + '"' + (k === start ? ' selected' : '') + '>' + Labels.TPL[k].title + '</option>';
+      }).join('') +
       '</select></label>' +
       '<div class="xs dim" id="pHint" style="margin:-6px 0 10px"></div>' +
       '<div id="pSecond"></div>' +
       '<div class="preview" id="pPrev"></div>' +
       '<div class="xs dim" id="pMeta" style="margin:-4px 0 10px"></div>' +
       '<div id="pWarn"></div>' +
-      '<details style="margin-bottom:10px"><summary class="sm dim">Строки на этикетке</summary>' +
-      '<label class="f" style="margin-top:8px"><span>Строка 2</span><input id="pL2" value="' + esc(lines[0]) + '"></label>' +
-      '<label class="f"><span>Строка 3</span><input id="pL3" value="' + esc(lines[1]) + '"></label>' +
-      '<label class="f"><span>Строка 4</span><input id="pL4" value="' + esc(lines[2]) + '"></label>' +
+      '<details style="margin-bottom:10px"><summary class="sm dim">Что на этикетке</summary>' +
+      '<label class="f" style="margin-top:8px"><span>Название (крупно)</span><input id="pTitle" value="' + esc(base.title) + '"></label>' +
+      '<label class="f"><span>Строка 1</span><input id="pL1" value="' + esc(base.lines[0]) + '"></label>' +
+      '<label class="f"><span>Строка 2</span><input id="pL2" value="' + esc(base.lines[1]) + '"></label>' +
       '</details>' +
       '<div class="grid2">' +
       '<label class="f"><span>Копий</span><input id="pCopies" type="number" value="1" min="1" max="20" inputmode="numeric"></label>' +
@@ -2055,14 +2112,17 @@ var DB = (function () {
     function spec() {
       var tpl = $('pTpl').value;
       var sel = $('pCode2');
-      var other = sel && sel.value ? stockOf(sel.value) : null;
+      var other = sel && sel.value && sel.value !== '__next' ? stockOf(sel.value) : null;
+      var o2 = other ? labelSpec(other) : null;
       return {
         template: tpl,
         code: st.code,
         ini: INI(),
-        lines: [$('pL2').value, $('pL3').value, $('pL4').value],
+        title: $('pTitle').value,
+        lines: [$('pL1').value, $('pL2').value],
         code2: other ? other.code : (sel && sel.value === '__next' ? Labels.nextCode(st.code) : st.code),
-        lines2: other ? labelLines(other) : null,
+        title2: o2 ? o2.title : null,
+        lines2: o2 ? o2.lines : null,
         roundLayout: tpl === 'round' && sel && sel.value ? 'two' : 'one',
         nextOnEach: tpl === 'third40'
       };
@@ -2070,7 +2130,7 @@ var DB = (function () {
 
     function secondPicker(tpl) {
       var box = $('pSecond');
-      if (tpl !== 'half40' && tpl !== 'round') { box.innerHTML = ''; return; }
+      if (!Labels.TPL[tpl].second) { box.innerHTML = ''; return; }
       var label = tpl === 'half40' ? 'Вторая половина' : 'Второй круг';
       var opts = '<option value="">та же позиция</option><option value="__next">следующий номер</option>' +
         S.stock.filter(function (x) { return x.id !== st.id; }).slice(0, 300).map(function (x) {
@@ -2083,24 +2143,24 @@ var DB = (function () {
     function draw() {
       var tpl = $('pTpl').value;
       $('pHint').textContent = Labels.TPL[tpl].hint;
-      var r = Labels.render(spec());
+      var rr = Labels.render(spec());
       var box = $('pPrev');
       box.innerHTML = '';
-      var cvEl = r.canvas;
+      var cvEl = rr.canvas;
       cvEl.style.width = Math.min(window.innerWidth - 60, cvEl.width * 0.55) + 'px';
       box.appendChild(cvEl);
-      $('pMeta').textContent = r.mmW + '×' + r.mmH + ' мм · ' + r.dots + ' точек · 300 dpi';
-      $('pWarn').innerHTML = r.warns.length
-        ? '<div class="sm" style="color:var(--warn);margin-bottom:10px">' +
-          r.warns.map(function (w) { return esc(w); }).join('<br>') + '</div>'
+      $('pMeta').textContent = rr.mmW + '×' + rr.mmH + ' мм · ' + rr.dots + ' точек' +
+        (rr.dm ? ' · код ' + rr.dm.modules + '×' + rr.dm.modules + ', модуль ' + rr.dm.moduleMm.toFixed(2) + ' мм' : '');
+      $('pWarn').innerHTML = rr.warns.length
+        ? '<div class="sm warnText" style="margin-bottom:10px">' + rr.warns.map(function (w) { return esc(w); }).join('<br>') + '</div>'
         : '';
-      return r;
+      return rr;
     }
 
-    secondPicker($('pTpl').value);
+    secondPicker(start);
     draw();
     $('pTpl').onchange = function () { secondPicker(this.value); draw(); };
-    ['pL2', 'pL3', 'pL4'].forEach(function (id) { $(id).oninput = draw; });
+    ['pTitle', 'pL1', 'pL2'].forEach(function (id) { $(id).oninput = draw; });
 
     Printer.setProgressHandler(function (v) { $('pBar').style.width = v + '%'; });
 
@@ -2116,52 +2176,80 @@ var DB = (function () {
     };
   }
 
-  Printer.setLogger(function () {
-    var l = $('printLog');
-    if (l) l.textContent = Printer.getLog();
-  });
   Printer.setStateHandler(function (kind, msg) { updatePrinterBtn(); toast(msg, kind === 'warn' ? 'bad' : ''); });
 
-  $('cfgDensity').value = Printer.CFG.density;
-  $('cfgPause').value = Printer.CFG.packetIntervalMs;
-  $('cfgIni').value = INI();
-  $('cfgDensity').onchange = function () { Printer.CFG.density = +this.value; };
-  $('cfgPause').onchange = function () { Printer.CFG.packetIntervalMs = +this.value; };
-  $('cfgIni').onchange = function () { localStorage.setItem('ini', this.value.trim().slice(0, 3) || 'ED'); };
-  $('logBox').addEventListener('toggle', function () {
-    Printer.setLogVisible(this.open);
-    if (this.open) $('printLog').textContent = Printer.getLog();
-  });
+  (function initSettings() {
+    var sel = $('cfgTpl');
+    sel.innerHTML = Object.keys(Labels.TPL).filter(function (k) { return !Labels.TPL[k].service; })
+      .map(function (k) { return '<option value="' + k + '">' + Labels.TPL[k].title + '</option>'; }).join('');
+    sel.value = defaultTpl();
+    var hint = function () { $('cfgTplHint').textContent = Labels.TPL[sel.value].hint; };
+    hint();
+    sel.onchange = function () { localStorage.setItem('tpl', this.value); hint(); };
+
+    $('cfgDensity').value = Printer.CFG.density;
+    $('cfgPause').value = Printer.CFG.packetIntervalMs;
+    $('cfgIni').value = INI();
+    $('cfgDensity').onchange = function () { Printer.CFG.density = +this.value; };
+    $('cfgPause').onchange = function () { Printer.CFG.packetIntervalMs = +this.value; };
+    $('cfgIni').onchange = function () { localStorage.setItem('ini', this.value.trim().slice(0, 3) || 'ED'); };
+  })();
 
   $('btnTestPrint').onclick = function () {
     printSpec({
-      template: 'rect30', code: 'R-0001', ini: INI(),
-      lines: ['Тестовая этикетка', 'проверка печати', '−20° / Полка']
+      template: defaultTpl(), code: 'R0001', ini: INI(),
+      title: 'Тестовая этикетка', lines: ['проверка печати', '−20° · Полка']
     }, 1);
   };
   $('btnRuler').onclick = function () {
-    printSpec({ template: 'ruler', code: '', lines: ['', '', ''] }, 1);
+    printSpec({ template: 'ruler', code: '', title: '', lines: ['', ''] }, 1);
   };
 
   // ---------- сканер ----------
-  var scanState = { stream: null, running: false, detector: null, onFound: null };
+  // Детектору отдаётся не весь кадр, а квадрат по рамке и не крупнее 720 px:
+  // меньше пикселей на разбор, меньше фона, заметно выше частота попыток.
+  var scanState = { stream: null, running: false, detector: null, onFound: null, torch: false, tick: 0 };
+  var work = null, wctx = null;
+
+  function workCanvas() {
+    if (!work) {
+      work = document.createElement('canvas');
+      wctx = work.getContext('2d', { willReadFrequently: true });
+    }
+    return wctx;
+  }
 
   async function openScanner(onFound) {
     scanState.onFound = onFound;
-    var wrap = $('camWrap');
     $('camStatus').textContent = 'поиск кода…';
     try {
       scanState.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 1280 } }
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 }, height: { ideal: 1920 },
+          frameRate: { ideal: 30 }
+        }
       });
     } catch (e) {
       return toast('Нет доступа к камере: ' + e.message, 'bad');
     }
+
+    var track = scanState.stream.getVideoTracks()[0];
+    var caps = (track && track.getCapabilities) ? (track.getCapabilities() || {}) : {};
+    // непрерывный автофокус: на старых камерах это главный источник промахов
+    if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+      try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
+    }
+    scanState.torch = false;
+    $('camTorch').classList.remove('on');
+    $('camTorch').style.display = caps.torch ? '' : 'none';
+
     var v = $('cam');
     v.srcObject = scanState.stream;
     await v.play().catch(function () {});
-    wrap.classList.add('open');
+    $('camWrap').classList.add('open');
     scanState.running = true;
+    scanState.tick = 0;
 
     if (!scanState.detector) {
       if (!('BarcodeDetector' in window)) {
@@ -2170,15 +2258,45 @@ var DB = (function () {
       }
       scanState.detector = new window.BarcodeDetector({ formats: ['data_matrix', 'qr_code', 'code_128'] });
     }
+    if (v.videoWidth) $('camStatus').textContent = v.videoWidth + '×' + v.videoHeight;
     loop();
   }
+
+  $('camTorch').onclick = async function () {
+    var track = scanState.stream && scanState.stream.getVideoTracks()[0];
+    if (!track) return;
+    scanState.torch = !scanState.torch;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: scanState.torch }] });
+      this.classList.toggle('on', scanState.torch);
+    } catch (e) {
+      scanState.torch = false;
+      toast('Фонарик недоступен', 'bad');
+    }
+  };
 
   async function loop() {
     if (!scanState.running) return;
     var v = $('cam');
     try {
-      if (v.readyState >= 2) {
-        var found = await scanState.detector.detect(v);
+      if (v.readyState >= 2 && v.videoWidth) {
+        var src;
+        // каждый пятый проход смотрим весь кадр: вдруг код мимо рамки
+        if (scanState.tick % 5 === 4) {
+          src = v;
+        } else {
+          var ctx2 = workCanvas();
+          var side = Math.round(Math.min(v.videoWidth, v.videoHeight) * 0.72);
+          var sx = Math.round((v.videoWidth - side) / 2);
+          var sy = Math.round((v.videoHeight - side) / 2);
+          var target = Math.min(side, 720);
+          work.width = target;
+          work.height = target;
+          ctx2.drawImage(v, sx, sy, side, side, 0, 0, target, target);
+          src = work;
+        }
+        scanState.tick++;
+        var found = await scanState.detector.detect(src);
         if (found && found.length) {
           var code = String(found[0].rawValue || '').trim().toUpperCase();
           if (code) {
@@ -2190,14 +2308,19 @@ var DB = (function () {
           }
         }
       }
-    } catch (e) { /* кадр не распознан — продолжаем */ }
-    requestAnimationFrame(function () { setTimeout(loop, 90); });
+    } catch (e) { /* кадр не разобрался — следующий */ }
+    setTimeout(loop, 40);
   }
 
   function closeScanner() {
     scanState.running = false;
-    if (scanState.stream) scanState.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (scanState.stream) {
+      var t = scanState.stream.getVideoTracks()[0];
+      if (t && scanState.torch) { try { t.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {} }
+      scanState.stream.getTracks().forEach(function (x) { x.stop(); });
+    }
     scanState.stream = null;
+    scanState.torch = false;
     $('cam').srcObject = null;
     $('camWrap').classList.remove('open');
   }
