@@ -140,6 +140,9 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .tree{margin-bottom:10px}
 .tree .node{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--line)}
 .tree .node:last-child{border-bottom:0}
+.twist{flex:0 0 auto;width:26px;height:26px;border:0;background:none;color:var(--dim);font-size:12px;border-radius:6px;display:flex;align-items:center;justify-content:center;padding:0}
+.twist:active{background:var(--surface2)}
+.twist.dot{color:var(--line);font-size:16px;line-height:1}
 .empty{text-align:center;color:var(--dim);padding:28px 10px;font-size:13.5px}
 hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 datalist{display:none}
@@ -1991,41 +1994,105 @@ var DB = (function () {
     }
   });
 
+  // ---------- дерево мест ----------
+  var locOpen = null;
+  function openSet() {
+    if (!locOpen) {
+      var raw = localStorage.getItem('locOpen');
+      if (raw === null) {
+        // первый запуск: раскрыт только верхний уровень
+        locOpen = {};
+        S.locations.forEach(function (l) { if (!l.parent_id) locOpen[l.id] = 1; });
+      } else {
+        try {
+          locOpen = {};
+          JSON.parse(raw).forEach(function (id) { locOpen[id] = 1; });
+        } catch (e) { locOpen = {}; }
+      }
+    }
+    return locOpen;
+  }
+  function saveOpenSet() {
+    localStorage.setItem('locOpen', JSON.stringify(Object.keys(openSet())));
+  }
+  function toggleLoc(id) {
+    var o = openSet();
+    if (o[id]) delete o[id]; else o[id] = 1;
+    saveOpenSet();
+    renderLocTree();
+  }
+
   function renderLocTree() {
     var byParent = {};
     S.locations.forEach(function (l) { (byParent[l.parent_id || ''] = byParent[l.parent_id || ''] || []).push(l); });
     Object.keys(byParent).forEach(function (k) {
       byParent[k].sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
     });
-    var counts = {};
-    S.stock.forEach(function (s) { counts[s.location_id] = (counts[s.location_id] || 0) + 1; });
 
+    // в счётчике — всё, что лежит внутри, включая вложенные места
+    var direct = {};
+    S.stock.forEach(function (x) {
+      if (x.status === 'discarded') return;
+      direct[x.location_id] = (direct[x.location_id] || 0) + 1;
+    });
+    var total = {};
+    function sum(id) {
+      var n = direct[id] || 0;
+      (byParent[id] || []).forEach(function (ch) { n += sum(ch.id); });
+      total[id] = n;
+      return n;
+    }
+    (byParent[''] || []).forEach(function (l) { sum(l.id); });
+
+    var o = openSet();
     var html = '';
     function walk(parent, depth) {
       (byParent[parent || ''] || []).forEach(function (l) {
-        var n = counts[l.id] || 0;
+        var kids = byParent[l.id] || [];
+        var isOpen = !!o[l.id];
         html += '<div class="node" data-loc="' + l.id + '">' +
-          '<div class="grow" style="padding-left:' + (depth * 14) + 'px">' +
+          '<div style="width:' + (depth * 16) + 'px;flex:0 0 auto"></div>' +
+          (kids.length
+            ? '<button class="twist" data-toggle="' + l.id + '">' + (isOpen ? '\u25be' : '\u25b8') + '</button>'
+            : '<span class="twist dot">\u00b7</span>') +
+          '<div class="grow" data-open="' + l.id + '">' +
           '<span style="font-weight:' + (depth ? 500 : 650) + '">' + esc(l.name) + '</span>' +
           (l.code ? ' <span class="xs dim mono">' + esc(l.code) + '</span>' : '') +
-          ' <span class="xs dim">' + labelOf(DB.LOC_KINDS, l.kind) +
-          (l.temp_c !== null && l.temp_c !== undefined && l.temp_c !== '' ? ' · ' + l.temp_c + '°' : '') + '</span>' +
+          '<div class="xs dim">' + labelOf(DB.LOC_KINDS, l.kind) +
+          (l.temp_c !== null && l.temp_c !== undefined && l.temp_c !== '' ? ' · ' + l.temp_c + '°' : '') +
+          (kids.length ? ' · внутри мест: ' + kids.length : '') + '</div>' +
           '</div>' +
-          '<span class="xs dim">' + (n ? n + ' поз.' : '') + '</span>' +
-          '<button class="btn sm ghost" data-editloc="' + l.id + '">✎</button>' +
+          '<span class="xs dim" style="flex:0 0 auto">' + (total[l.id] ? total[l.id] : '') + '</span>' +
+          '<button class="btn sm ghost" data-editloc="' + l.id + '">\u270e</button>' +
           '</div>';
-        walk(l.id, depth + 1);
+        if (isOpen) walk(l.id, depth + 1);
       });
     }
     walk('', 0);
-    $('locTree').innerHTML = html ? '<div class="list tree">' + html + '</div>' : '<div class="empty">Нет мест</div>';
+
+    var allIds = S.locations.map(function (l) { return l.id; });
+    var anyClosed = allIds.some(function (id) { return !o[id] && (byParent[id] || []).length; });
+    $('locTree').innerHTML = html
+      ? '<div class="row" style="margin-bottom:8px">' +
+        '<button class="btn sm ghost grow" id="locAll">' + (anyClosed ? 'Раскрыть всё' : 'Свернуть всё') + '</button>' +
+        '</div><div class="list tree">' + html + '</div>'
+      : '<div class="empty">Нет мест</div>';
+
+    if ($('locAll')) $('locAll').onclick = function () {
+      if (anyClosed) S.locations.forEach(function (l) { openSet()[l.id] = 1; });
+      else locOpen = {};
+      saveOpenSet();
+      renderLocTree();
+    };
   }
 
   $('locTree').addEventListener('click', function (e) {
+    var tw = e.target.closest('[data-toggle]');
+    if (tw) { toggleLoc(tw.dataset.toggle); return; }
     var ed = e.target.closest('[data-editloc]');
     if (ed) { showLocForm(locOf(ed.dataset.editloc)); return; }
-    var nd = e.target.closest('[data-loc]');
-    if (nd) showLocContents(nd.dataset.loc);
+    var op = e.target.closest('[data-open]');
+    if (op) { showLocContents(op.dataset.open); return; }
   });
 
   function renderRecent() {
@@ -2304,9 +2371,14 @@ var DB = (function () {
   $('btnNew').onclick = function () { showStockForm(null); };
 
   // ---------- места ----------
-  function showLocForm(loc) {
+  function showLocForm(loc, opts) {
+    opts = opts || {};
     var isNew = !loc;
-    loc = loc || { kind: 'box', temp_c: '' };
+    loc = loc || {
+      kind: opts.kind || 'box',
+      parent_id: opts.parentId || null,
+      temp_c: opts.parentId && locOf(opts.parentId) ? locOf(opts.parentId).temp_c : ''
+    };
     openSheet('<div class="sheetTitle">' + (isNew ? 'Новое место' : 'Правка места') + '</div>' +
       (loc.code ? '<div class="sm dim mono" style="margin-bottom:10px">' + esc(loc.code) + '</div>' : '') +
       '<label class="f"><span>Название *</span><input id="lName" value="' + esc(loc.name || '') + '"></label>' +
@@ -2334,7 +2406,12 @@ var DB = (function () {
       loc.temp_c = $('lTemp').value === '' ? null : parseFloat($('lTemp').value);
       loc.parent_id = parent;
       await DB.insertLocation(loc);
-      closeSheet(); await reload(); toast('Сохранено', 'ok');
+      if (parent) openSet()[parent] = 1;   // новое место должно быть видно в дереве
+      saveOpenSet();
+      closeSheet();
+      await reload();
+      if (opts.afterSave) opts.afterSave(loc);
+      else toast('Сохранено: ' + loc.code, 'ok');
     };
     if ($('lDel')) $('lDel').onclick = async function () {
       var ids = DB.descendants(S.locations, loc.id);
@@ -2837,6 +2914,7 @@ var DB = (function () {
   // целиком, но с новым кодом — одинаковые позиции всё равно разные объекты.
   function renderCensusLocs() { $('censusLoc').innerHTML = locOptions(null); }
 
+
   function startCensus(locId) {
     if (!locId) return toast('Сначала создай место', 'bad');
     S.census = { loc_id: locId, type: localStorage.getItem('censusType') || 'reagent', entered: [], draft: {}, last: null };
@@ -2877,7 +2955,10 @@ var DB = (function () {
       '<div class="row"><div class="grow" style="font-weight:650">' + esc(S.paths[c.loc_id] || '') + '</div>' +
       '<button class="btn sm ghost" id="cLoc">сменить</button></div>' +
       '<div class="xs dim" id="cBadge">заведено ' + c.entered.length + '</div>' +
-      '<button class="btn sm" id="cReprint" style="margin-top:8px;display:' + (unprinted ? '' : 'none') + '">Допечатать</button>' +
+      '<div class="grid2" style="margin-top:8px">' +
+      '<button class="btn sm" id="cNewLoc">+ коробка здесь</button>' +
+      '<button class="btn sm" id="cReprint" style="display:' + (unprinted ? '' : 'none') + '">Допечатать</button>' +
+      '</div>' +
       '</div>' +
 
       '<label class="f"><span>Название *</span><input id="c_name" list="itemNames" value="' + esc(d.name || '') + '" autocomplete="off" enterkeyhint="done"></label>' +
@@ -2887,6 +2968,7 @@ var DB = (function () {
       '<div id="cFields">' + fieldsHtml(c.type, pseudo, pseudoItem, 'c_') + '</div>' +
 
       '<button class="btn primary big" id="cAdd">Создать и напечатать</button>' +
+      '<button class="btn big" id="cAddPlain" style="margin-top:8px">Создать без печати</button>' +
       '<div class="grid2" style="margin-top:8px">' +
       '<button class="btn" id="cAgain"' + (c.last ? '' : ' disabled') + '>Ещё такой же</button>' +
       '<button class="btn ghost" id="cUndo"' + (c.entered.length ? '' : ' disabled') + '>Отменить последнюю</button>' +
@@ -2908,8 +2990,25 @@ var DB = (function () {
       $('cFields').innerHTML = fieldsHtml(this.value, pseudo, pseudoItem, 'c_');
     };
     $('cLoc').onclick = function () { S.census = null; renderCensusRun(); goto('s-audit'); };
-    $('cAdd').onclick = function () { censusGuard(false); };
-    $('cAgain').onclick = function () { censusGuard(true); };
+    $('cNewLoc').onclick = function () {
+      // коробку заводят по ходу переписи: создал, наклеил, ссыпал в неё пробирки
+      showLocForm(null, {
+        parentId: S.census.loc_id,
+        afterSave: async function (loc) {
+          S.census.loc_id = loc.id;
+          renderCensusRun();
+          toast('Теперь заносим в «' + loc.name + '»', 'ok');
+          if (await ensurePrinter()) {
+            var sp = Object.assign({ template: defaultTpl(), code: loc.code, ini: INI() }, labelSpecLoc(loc));
+            enqueuePrint(sp, 1, null);
+          }
+        }
+      });
+    };
+    $('cAdd').onclick = function () { censusGuard(false, true); };
+    $('cAddPlain').onclick = function () { censusGuard(false, false); };
+    // «Ещё такой же» продолжает в том же режиме, каким создали предыдущую
+    $('cAgain').onclick = function () { censusGuard(true, c.lastPrint !== false); };
     $('cUndo').onclick = censusUndo;
     $('cDone').onclick = function () {
       var n = S.census.entered.length;
@@ -2932,17 +3031,17 @@ var DB = (function () {
     updateCensusBadge();
   }
 
-  async function censusGuard(repeatLast) {
+  async function censusGuard(repeatLast, doPrint) {
     if (censusBusy) return;
     censusBusy = true;
-    var btn = $(repeatLast ? 'cAgain' : 'cAdd');
-    if (btn) btn.disabled = true;
-    try { await censusAdd(repeatLast); }
+    var ids = ['cAdd', 'cAddPlain', 'cAgain'];
+    ids.forEach(function (i) { if ($(i)) $(i).disabled = true; });
+    try { await censusAdd(repeatLast, doPrint); }
     catch (e) { toast('Не сохранилось: ' + (e && e.message ? e.message : e), 'bad'); }
     finally {
       censusBusy = false;
-      var b2 = $(repeatLast ? 'cAgain' : 'cAdd');
-      if (b2) b2.disabled = false;
+      ['cAdd', 'cAddPlain'].forEach(function (i) { if ($(i)) $(i).disabled = false; });
+      if ($('cAgain')) $('cAgain').disabled = !(S.census && S.census.last);
     }
   }
 
@@ -2959,15 +3058,16 @@ var DB = (function () {
   }
 
   var censusBusy = false;   // защёлкой владеет censusGuard, здесь её не проверяем
-  async function censusAdd(repeatLast) {
+  async function censusAdd(repeatLast, doPrint) {
     var c = S.census;
     if (!c) return;
     var d = repeatLast ? c.last : censusDraftFromForm();
     if (!d || !d.name) return toast(repeatLast ? 'Нечего повторять' : 'Нужно название', 'bad');
     // requestDevice требует живого жеста пользователя, поэтому подключаемся
     // первым делом, до записи в базу, а не после цепочки await
-    var printerReady = Printer.isConnected() ? true : await ensurePrinter();
+    var printerReady = !doPrint ? false : (Printer.isConnected() ? true : await ensurePrinter());
     c.last = d;
+    c.lastPrint = !!doPrint;
     c.type = $('c_type') ? $('c_type').value : c.type;
 
     var item = null;
@@ -3020,7 +3120,7 @@ var DB = (function () {
       var spec = Object.assign({ template: defaultTpl(), code: st.code, ini: INI() }, labelSpec(st));
       enqueuePrint(spec, labelCount(st), st.id);
     }
-    toast(st.code + ' · ' + displayName(st), 'ok');
+    toast(st.code + ' · ' + displayName(st) + (doPrint ? '' : ' · без этикетки'), 'ok');
   }
 
   async function censusUndo() {
@@ -3572,7 +3672,7 @@ var DB = (function () {
   }
 
   // ---------- версия ----------
-  var BUILD = { app: 'v9', built: '2026-11-19 00:09' };
+  var BUILD = { app: 'v11', built: '2026-11-19 09:03' };
 
   function renderVersion() {
     $('verApp').textContent = BUILD.app;

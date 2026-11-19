@@ -1,5 +1,5 @@
 // Офлайн-кэш приложения. Меняй CACHE при каждом обновлении index.html.
-var CACHE = 'lab-inv-v9';
+var CACHE = 'lab-inv-v11';
 var ASSETS = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', function (e) {
